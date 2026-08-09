@@ -11,6 +11,8 @@ import {
   UserCheck,
   BadgeIndianRupee,
   Settings,
+  Layers,
+  Building2,
 } from "lucide-react";
 
 const navigationItems = [
@@ -18,6 +20,11 @@ const navigationItems = [
     name: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
+  },
+  {
+    name: "Outlets",
+    href: "/outlets",
+    icon: Building2,
   },
   {
     name: "Clients",
@@ -28,6 +35,11 @@ const navigationItems = [
     name: "Client Attendance",
     href: "/client-attendance",
     icon: CalendarCheck,
+  },
+  {
+    name: "Plans",
+    href: "/plans",
+    icon: Layers,
   },
   {
     name: "Products",
