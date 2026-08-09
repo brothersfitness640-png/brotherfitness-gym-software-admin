@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
 import { db } from "@/lib/firebase";
 import {
@@ -8,6 +9,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  updateDoc,
   onSnapshot,
   query,
   orderBy,
@@ -25,11 +27,12 @@ import {
   Building2,
   Plus,
   Trash2,
+  Edit2,
+  Eye,
   X,
   CheckCircle2,
   Loader2,
   RefreshCw,
-  Sparkles,
   Upload,
   Globe,
 } from "lucide-react";
@@ -63,12 +66,14 @@ interface ClientMember {
 }
 
 export default function ClientsPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<ClientMember[]>([]);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [outlets, setOutlets] = useState<GymOutlet[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Form Fields State
@@ -170,7 +175,8 @@ export default function ClientsPage() {
   }, [isCameraActive]);
 
   // Modal Handlers
-  const handleOpenModal = () => {
+  const handleOpenAddModal = () => {
+    setEditingId(null);
     setName("");
     setMobile("");
     setEmail("");
@@ -185,9 +191,27 @@ export default function ClientsPage() {
     setIsModalOpen(true);
   };
 
+  const handleOpenEditModal = (client: ClientMember, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(client.id);
+    setName(client.name);
+    setMobile(client.mobile);
+    setEmail(client.email || "");
+    setAddress(client.address);
+    setSelectedPlanId(client.planId || (plans.length > 0 ? plans[0].id : ""));
+    setSelectedOutletId(client.outletId || (outlets.length > 0 ? outlets[0].id : ""));
+    setLatitude(client.latitude || null);
+    setLongitude(client.longitude || null);
+    setCapturedPhoto(client.photoUrl || null);
+    setGpsError("");
+    setCameraError("");
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     stopCamera();
     setIsModalOpen(false);
+    setEditingId(null);
   };
 
   // GPS Location Handler
@@ -270,7 +294,7 @@ export default function ClientsPage() {
     }
   };
 
-  // Save Client with ImageKit Upload
+  // Save or Update Client
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !mobile.trim() || !address.trim()) {
@@ -280,10 +304,10 @@ export default function ClientsPage() {
 
     setSaving(true);
     try {
-      let finalPhotoUrl = "";
+      let finalPhotoUrl = capturedPhoto || "";
 
-      // 1. Upload photo to ImageKit API route if captured
-      if (capturedPhoto) {
+      // Upload new captured photo to ImageKit if it's base64 data URL
+      if (capturedPhoto && capturedPhoto.startsWith("data:image")) {
         const formData = new FormData();
         formData.append("file", capturedPhoto);
         formData.append("fileName", `client_${name.replace(/\s+/g, "_")}_${Date.now()}.jpg`);
@@ -295,16 +319,14 @@ export default function ClientsPage() {
 
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
-          finalPhotoUrl = uploadData.url || "";
+          finalPhotoUrl = uploadData.url || finalPhotoUrl;
         }
       }
 
-      // Find plan and outlet names
       const matchedPlan = plans.find((p) => p.id === selectedPlanId);
       const matchedOutlet = outlets.find((o) => o.id === selectedOutletId);
 
-      // 2. Save Client Record to Firebase Firestore
-      await addDoc(collection(db, "clients"), {
+      const clientData = {
         name: name.trim(),
         mobile: mobile.trim(),
         email: email.trim() || null,
@@ -316,8 +338,19 @@ export default function ClientsPage() {
         latitude: latitude || null,
         longitude: longitude || null,
         photoUrl: finalPhotoUrl,
-        createdAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingId) {
+        // Update Existing Client
+        await updateDoc(doc(db, "clients", editingId), clientData);
+      } else {
+        // Add New Client
+        await addDoc(collection(db, "clients"), {
+          ...clientData,
+          createdAt: serverTimestamp(),
+        });
+      }
 
       handleCloseModal();
     } catch (err: any) {
@@ -328,7 +361,8 @@ export default function ClientsPage() {
     }
   };
 
-  const handleDeleteClient = async (id: string, clientName: string) => {
+  const handleDeleteClient = async (id: string, clientName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (confirm(`Are you sure you want to delete member "${clientName}"?`)) {
       try {
         await deleteDoc(doc(db, "clients", id));
@@ -337,6 +371,10 @@ export default function ClientsPage() {
         alert("Failed to delete client record.");
       }
     }
+  };
+
+  const handleRowClick = (clientId: string) => {
+    router.push(`/clients/${clientId}`);
   };
 
   const filteredClients = clients.filter(
@@ -351,7 +389,7 @@ export default function ClientsPage() {
       title="Clients"
       subtitle="View, manage, and register gym members and memberships"
       actionText="Add Client"
-      onActionClick={handleOpenModal}
+      onActionClick={handleOpenAddModal}
     >
       {/* Top Stat Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -458,7 +496,7 @@ export default function ClientsPage() {
               Click the Add Client button to register members with photo, GPS location, and plan assignment.
             </p>
             <button
-              onClick={handleOpenModal}
+              onClick={handleOpenAddModal}
               className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
             >
               <Plus className="h-4 w-4" />
@@ -482,11 +520,12 @@ export default function ClientsPage() {
                 {filteredClients.map((client) => (
                   <tr
                     key={client.id}
-                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                    onClick={() => handleRowClick(client.id)}
+                    className="cursor-pointer hover:bg-amber-400/5 dark:hover:bg-amber-400/10 transition-colors group"
                   >
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-700 font-semibold text-xs">
+                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-700 font-semibold text-xs shadow-xs">
                           {client.photoUrl ? (
                             <img
                               src={client.photoUrl}
@@ -498,7 +537,7 @@ export default function ClientsPage() {
                           )}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm group-hover:text-amber-600 transition-colors">
                             {client.name}
                           </span>
                           <span className="text-[11px] text-zinc-500 truncate max-w-[160px]">
@@ -546,13 +585,29 @@ export default function ClientsPage() {
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        onClick={() => handleDeleteClient(client.id, client.name)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors ml-auto"
-                        title="Delete Client"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleRowClick(client.id)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-amber-400 hover:text-black dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                          title="View Client Details"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleOpenEditModal(client, e)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                          title="Edit Client"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteClient(client.id, client.name, e)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                          title="Delete Client"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -562,7 +617,7 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {/* Comprehensive Add Client Modal */}
+      {/* Add / Edit Client Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 my-8 animate-in fade-in zoom-in-95 duration-150">
@@ -573,7 +628,7 @@ export default function ClientsPage() {
                   <Users className="h-4 w-4" />
                 </div>
                 <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  Add New Client Member
+                  {editingId ? "Edit Client Member" : "Add New Client Member"}
                 </h2>
               </div>
               <button
@@ -848,7 +903,7 @@ export default function ClientsPage() {
                   ) : (
                     <>
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Save Client</span>
+                      <span>{editingId ? "Update Client" : "Save Client"}</span>
                     </>
                   )}
                 </button>
