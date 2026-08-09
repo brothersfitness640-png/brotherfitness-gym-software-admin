@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -361,15 +362,26 @@ export default function ClientsPage() {
     }
   };
 
-  const handleDeleteClient = async (id: string, clientName: string, e: React.MouseEvent) => {
+  // Custom Delete Confirmation State
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleOpenDeleteModal = (id: string, clientName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete member "${clientName}"?`)) {
-      try {
-        await deleteDoc(doc(db, "clients", id));
-      } catch (err) {
-        console.error("Error deleting client:", err);
-        alert("Failed to delete client record.");
-      }
+    setDeleteTarget({ id, name: clientName });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "clients", deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Error deleting client:", err);
+      alert("Failed to delete client record.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -601,7 +613,7 @@ export default function ClientsPage() {
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={(e) => handleDeleteClient(client.id, client.name, e)}
+                          onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
                           className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
                           title="Delete Client"
                         >
@@ -912,6 +924,15 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Client Member"
+        message={`Are you sure you want to delete member "${deleteTarget?.name}"? All associated data will be permanently removed.`}
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </PageContainer>
   );
 }

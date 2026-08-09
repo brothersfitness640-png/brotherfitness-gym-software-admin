@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PageContainer from "@/components/PageContainer";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -135,14 +136,25 @@ export default function OutletsPage() {
     }
   };
 
-  const handleDeleteOutlet = async (id: string, outletName: string) => {
-    if (confirm(`Are you sure you want to delete outlet "${outletName}"?`)) {
-      try {
-        await deleteDoc(doc(db, "outlets", id));
-      } catch (err) {
-        console.error("Failed to delete outlet:", err);
-        alert("Failed to delete outlet.");
-      }
+  // Custom Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteOutlet = (id: string, outletName: string) => {
+    setDeleteTarget({ id, name: outletName });
+  };
+
+  const handleConfirmDeleteOutlet = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "outlets", deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Failed to delete outlet:", err);
+      alert("Failed to delete outlet.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -439,6 +451,15 @@ export default function OutletsPage() {
           </div>
         </div>
       )}
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Gym Branch Outlet"
+        message={`Are you sure you want to delete outlet branch "${deleteTarget?.name}"?`}
+        loading={deleting}
+        onConfirm={handleConfirmDeleteOutlet}
+        onClose={() => setDeleteTarget(null)}
+      />
     </PageContainer>
   );
 }

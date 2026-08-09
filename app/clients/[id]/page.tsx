@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -559,16 +560,76 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteAssignedPlan = async (id: string) => {
-    if (confirm("Delete this assigned plan?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId, "assigned_plans", id));
-      } catch (err) {
-        console.error("Error deleting plan:", err);
+  // Reusable Custom Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    type: "assigned_plan" | "installment" | "trainer" | "diet" | "attendance";
+    title: string;
+    message: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirmGenericDelete = async () => {
+    if (!deleteTarget || !clientId) return;
+    setDeleting(true);
+    try {
+      if (deleteTarget.type === "assigned_plan") {
+        await deleteDoc(doc(db, "clients", clientId, "assigned_plans", deleteTarget.id));
+      } else if (deleteTarget.type === "installment") {
+        await deleteDoc(doc(db, "clients", clientId, "installments", deleteTarget.id));
+      } else if (deleteTarget.type === "trainer") {
+        await deleteDoc(doc(db, "clients", clientId, "trainers", deleteTarget.id));
+      } else if (deleteTarget.type === "diet") {
+        await deleteDoc(doc(db, "clients", clientId, "diets", deleteTarget.id));
+      } else if (deleteTarget.type === "attendance") {
+        await deleteDoc(doc(db, "clients", clientId, "attendance", deleteTarget.id));
       }
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      alert("Failed to delete record.");
+    } finally {
+      setDeleting(false);
     }
   };
 
+  const handleDeleteAssignedPlan = (id: string, planName: string) => {
+    setDeleteTarget({
+      id,
+      type: "assigned_plan",
+      title: "Delete Assigned Plan",
+      message: `Are you sure you want to delete assigned plan "${planName}"?`,
+    });
+  };
+
+  const handleDeleteInstallment = (id: string) => {
+    setDeleteTarget({
+      id,
+      type: "installment",
+      title: "Delete Installment Record",
+      message: "Are you sure you want to delete this payment installment?",
+    });
+  };
+
+  const handleDeleteTrainer = (id: string, trainerName: string) => {
+    setDeleteTarget({
+      id,
+      type: "trainer",
+      title: "Delete Trainer Assignment",
+      message: `Are you sure you want to unassign trainer "${trainerName}"?`,
+    });
+  };
+
+  const handleDeleteDiet = (id: string, dietName: string) => {
+    setDeleteTarget({
+      id,
+      type: "diet",
+      title: "Delete Diet Suggestion",
+      message: `Are you sure you want to delete diet schedule "${dietName}"?`,
+    });
+  };
+
+  // --- INSTALLMENT HANDLERS ---
   const handleOpenInstallmentModal = (assignedPlanId: string, inst?: InstallmentRecord) => {
     setTargetAssignedPlanId(assignedPlanId);
     if (inst) {
@@ -621,17 +682,7 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteInstallment = async (id: string) => {
-    if (confirm("Delete this installment record?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId, "installments", id));
-      } catch (err) {
-        console.error("Error deleting installment:", err);
-      }
-    }
-  };
-
-  // --- TAB 3: TRAINER HANDLERS ---
+  // --- TRAINER HANDLERS ---
   const handleOpenTrainerModal = (t?: TrainerRecord) => {
     if (t) {
       setEditingTrainerId(t.id);
@@ -678,17 +729,7 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteTrainer = async (id: string) => {
-    if (confirm("Delete this trainer assignment?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId, "trainers", id));
-      } catch (err) {
-        console.error("Error deleting trainer:", err);
-      }
-    }
-  };
-
-  // --- TAB 4: DIET HANDLERS ---
+  // --- DIET HANDLERS ---
   const handleAddFoodItemRow = () => {
     setFoodItemList((prev) => [
       ...prev,
@@ -763,14 +804,13 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteDiet = async (id: string) => {
-    if (confirm("Delete this diet suggestion plan?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId, "diets", id));
-      } catch (err) {
-        console.error("Error deleting diet:", err);
-      }
-    }
+  const handleDeleteAttendance = (id: string, attDate: string) => {
+    setDeleteTarget({
+      id,
+      type: "attendance",
+      title: "Delete Attendance Log",
+      message: `Are you sure you want to delete attendance record for date ${attDate}?`,
+    });
   };
 
   // --- AUTOMATED STRICT SECURITY ATTENDANCE FLOW ---
@@ -1015,15 +1055,7 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteAttendance = async (id: string) => {
-    if (confirm("Delete this attendance log?")) {
-      try {
-        await deleteDoc(doc(db, "clients", clientId, "attendance", id));
-      } catch (err) {
-        console.error("Error deleting attendance:", err);
-      }
-    }
-  };
+
 
   // Attendance Filters Logic
   const filteredAttendance = attendances.filter((att) => {
@@ -1524,7 +1556,7 @@ export default function ClientDetailPage() {
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteAssignedPlan(plan.id)}
+                              onClick={() => handleDeleteAssignedPlan(plan.id, plan.planName)}
                               className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
                               title="Delete Plan"
                             >
@@ -1698,8 +1730,8 @@ export default function ClientDetailPage() {
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => handleDeleteTrainer(t.id)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                      onClick={() => handleDeleteTrainer(t.id, t.name)}
+                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
                       title="Delete Trainer"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1775,7 +1807,7 @@ export default function ClientDetailPage() {
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDeleteDiet(d.id)}
+                        onClick={() => handleDeleteDiet(d.id, d.name)}
                         className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
                         title="Delete Diet"
                       >
@@ -1975,7 +2007,7 @@ export default function ClientDetailPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteAttendance(a.id)}
+                            onClick={() => handleDeleteAttendance(a.id, a.date)}
                             className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
                             title="Delete Attendance"
                           >
@@ -2595,6 +2627,16 @@ export default function ClientDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title={deleteTarget?.title || "Confirm Deletion"}
+        message={deleteTarget?.message || "Are you sure you want to delete this record?"}
+        loading={deleting}
+        onConfirm={handleConfirmGenericDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </PageContainer>
   );
 }

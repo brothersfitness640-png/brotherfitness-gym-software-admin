@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PageContainer from "@/components/PageContainer";
+import DeleteConfirmModal from "@/components/DeleteConfirmModal";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -135,14 +136,25 @@ export default function PlansPage() {
     }
   };
 
-  const handleDeletePlan = async (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete plan "${name}"?`)) {
-      try {
-        await deleteDoc(doc(db, "plans", id));
-      } catch (err) {
-        console.error("Failed to delete plan:", err);
-        alert("Failed to delete plan.");
-      }
+  // Custom Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeletePlan = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+  };
+
+  const handleConfirmDeletePlan = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "plans", deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Failed to delete plan:", err);
+      alert("Failed to delete plan.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -445,6 +457,15 @@ export default function PlansPage() {
           </div>
         </div>
       )}
+      {/* Custom Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Gym Plan"
+        message={`Are you sure you want to delete membership plan "${deleteTarget?.name}"?`}
+        loading={deleting}
+        onConfirm={handleConfirmDeletePlan}
+        onClose={() => setDeleteTarget(null)}
+      />
     </PageContainer>
   );
 }
