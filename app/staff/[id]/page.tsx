@@ -10,6 +10,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  setDoc,
   updateDoc,
   onSnapshot,
   query,
@@ -1000,8 +1001,12 @@ export default function StaffDetailPage() {
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, "staff", staffId, "payrolls"), payslipData);
-      alert(`Payslip for ${selectedPayrollMonth} generated and saved successfully!`);
+      await setDoc(
+        doc(db, "staff", staffId, "payrolls", currentMonthCalc.monthStr),
+        payslipData,
+        { merge: true }
+      );
+      alert(`Payslip for ${selectedPayrollMonth} saved/updated successfully!`);
     } catch (err) {
       console.error("Error generating payslip:", err);
       alert("Failed to save payslip.");
