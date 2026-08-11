@@ -10,6 +10,7 @@ import {
   doc,
   collection,
   addDoc,
+  setDoc,
   deleteDoc,
   updateDoc,
   onSnapshot,
@@ -44,6 +45,7 @@ import {
   RefreshCw,
   Layers,
   Volume2,
+  LogOut,
 } from "lucide-react";
 
 interface ClientMember {
@@ -279,6 +281,18 @@ async function compareLiveFrameWithRegisteredPhoto(
   });
 }
 
+function getCurrentFormattedTime(): string {
+  const now = new Date();
+  let hours = now.getHours();
+  const minutes = now.getMinutes();
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? `0${minutes}` : minutes;
+  const hoursStr = hours < 10 ? `0${hours}` : hours;
+  return `${hoursStr}:${minutesStr} ${ampm}`;
+}
+
 export default function ClientDetailPage() {
   const params = useParams();
   const clientId = params?.id as string;
@@ -342,8 +356,13 @@ export default function ClientDetailPage() {
   const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null);
   const [attDate, setAttDate] = useState(new Date().toISOString().split("T")[0]);
   const [attInTime, setAttInTime] = useState("06:30 AM");
-  const [attOutTime, setAttOutTime] = useState("08:00 AM");
+  const [attOutTime, setAttOutTime] = useState("");
   const [attStatus, setAttStatus] = useState("Present");
+
+  // Out Time Modal State
+  const [isOutTimeModalOpen, setIsOutTimeModalOpen] = useState(false);
+  const [outTimeAttRecord, setOutTimeAttRecord] = useState<AttendanceRecord | null>(null);
+  const [manualOutTime, setManualOutTime] = useState("");
 
   // Automated Flow Step State
   const [attStep, setAttStep] = useState<
@@ -824,6 +843,8 @@ export default function ClientDetailPage() {
 
   const handleStartAutomatedAttendanceFlow = (a?: AttendanceRecord) => {
     stopAttendanceCamera();
+    const todayStr = new Date().toISOString().split("T")[0];
+
     if (a) {
       setEditingAttendanceId(a.id);
       setAttDate(a.date);
@@ -831,10 +852,19 @@ export default function ClientDetailPage() {
       setAttOutTime(a.outTime);
       setAttStatus(a.status);
     } else {
+      // Check if attendance already marked for today
+      const existingTodayRecord = attendances.find((rec) => rec.date === todayStr);
+      if (existingTodayRecord) {
+        alert(
+          `Attendance for today (${todayStr}) has already been marked for ${client?.name || "this client"}!\n\nDaily attendance can only be logged once per day.`
+        );
+        return;
+      }
+
       setEditingAttendanceId(null);
-      setAttDate(new Date().toISOString().split("T")[0]);
-      setAttInTime("06:30 AM");
-      setAttOutTime("08:00 AM");
+      setAttDate(todayStr);
+      setAttInTime(getCurrentFormattedTime());
+      setAttOutTime("");
       setAttStatus("Present");
     }
 
@@ -1018,31 +1048,27 @@ export default function ClientDetailPage() {
 
   // Auto-Save Attendance to Firestore & Auto-close modal
   const autoSaveAttendanceRecord = async (matchScore: number) => {
-    if (!clientId) return;
+    if (!clientId || !client) return;
     setSaving(true);
     try {
       const attData = {
+        clientId: client.id,
+        clientName: client.name,
+        clientMobile: client.mobile,
+        clientPhotoUrl: client.photoUrl || "",
+        outletName: client.outletName,
         date: attDate,
-        inTime: attInTime,
-        outTime: attOutTime,
-        status: attStatus,
+        inTime: attInTime || getCurrentFormattedTime(),
+        outTime: attOutTime || "",
+        status: attStatus || "Present",
         radiusDistance: calculatedRadiusMeters || 14,
         faceMatchScore: matchScore,
         verified: true,
         updatedAt: serverTimestamp(),
       };
 
-      if (editingAttendanceId) {
-        await updateDoc(
-          doc(db, "clients", clientId, "attendance", editingAttendanceId),
-          attData
-        );
-      } else {
-        await addDoc(collection(db, "clients", clientId, "attendance"), {
-          ...attData,
-          createdAt: serverTimestamp(),
-        });
-      }
+      const docId = editingAttendanceId || attDate;
+      await setDoc(doc(db, "clients", clientId, "attendance", docId), attData, { merge: true });
 
       setTimeout(() => {
         setIsAttendanceModalOpen(false);
@@ -1050,6 +1076,34 @@ export default function ClientDetailPage() {
       }, 1400);
     } catch (err) {
       console.error("Error auto-saving attendance:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Out Time Modal Handlers for Client Details Page
+  const handleOpenOutTimeModal = (a: AttendanceRecord) => {
+    setOutTimeAttRecord(a);
+    setManualOutTime(a.outTime && a.outTime !== "--" ? a.outTime : getCurrentFormattedTime());
+    setIsOutTimeModalOpen(true);
+  };
+
+  const handleSaveOutTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !outTimeAttRecord || !manualOutTime.trim()) return;
+    setSaving(true);
+    try {
+      await updateDoc(
+        doc(db, "clients", clientId, "attendance", outTimeAttRecord.id || outTimeAttRecord.date),
+        {
+          outTime: manualOutTime.trim(),
+          updatedAt: serverTimestamp(),
+        }
+      );
+      setIsOutTimeModalOpen(false);
+    } catch (err) {
+      console.error("Error updating out time:", err);
+      alert("Failed to update out time.");
     } finally {
       setSaving(false);
     }
@@ -1916,13 +1970,20 @@ export default function ClientDetailPage() {
               </button>
             </div>
 
-            <button
-              onClick={() => handleStartAutomatedAttendanceFlow()}
-              className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              <span>+ Log Attendance (Auto-Security Scan)</span>
-            </button>
+            {attendances.some((rec) => rec.date === new Date().toISOString().split("T")[0]) ? (
+              <div className="flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3.5 py-1.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>Today's Attendance Marked</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => handleStartAutomatedAttendanceFlow()}
+                className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span>+ Log Attendance (Auto-Security Scan)</span>
+              </button>
+            )}
           </div>
 
           {/* Custom Date Range Filter Inputs */}
@@ -1999,6 +2060,14 @@ export default function ClientDetailPage() {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenOutTimeModal(a)}
+                            className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
+                            title="Set / Edit Out Time"
+                          >
+                            <LogOut className="h-3.5 w-3.5" />
+                            <span>{a.outTime && a.outTime !== "--" ? "Out Time" : "+ Out Time"}</span>
+                          </button>
                           <button
                             onClick={() => handleStartAutomatedAttendanceFlow(a)}
                             className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
@@ -2624,6 +2693,84 @@ export default function ClientDetailPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MANUAL OUT TIME MODAL --- */}
+      {isOutTimeModalOpen && outTimeAttRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <LogOut className="h-4 w-4 text-amber-500" />
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Set Out Time
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsOutTimeModalOpen(false)}
+                className="cursor-pointer text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOutTime} className="mt-4 flex flex-col gap-4">
+              <div>
+                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 block">
+                  Date: {outTimeAttRecord.date}
+                </span>
+                <span className="text-[11px] text-zinc-500 font-medium">
+                  Checked In at: {outTimeAttRecord.inTime || "--"}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Out Time (e.g. 09:30 AM)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={manualOutTime}
+                    onChange={(e) => setManualOutTime(e.target.value)}
+                    placeholder="HH:MM AM/PM"
+                    className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setManualOutTime(getCurrentFormattedTime())}
+                    className="cursor-pointer whitespace-nowrap rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                  >
+                    Now
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsOutTimeModalOpen(false)}
+                  className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  {saving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  <span>Save Out Time</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
