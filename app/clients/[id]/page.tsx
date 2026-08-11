@@ -46,6 +46,7 @@ import {
   Layers,
   Volume2,
   LogOut,
+  Package,
 } from "lucide-react";
 
 interface ClientMember {
@@ -114,6 +115,38 @@ interface AttendanceRecord {
   radiusDistance?: number;
   faceMatchScore?: number;
   verified?: boolean;
+}
+
+interface CatalogProduct {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl?: string;
+  categoryName?: string;
+}
+
+interface PurchasedProductRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  imageUrl?: string;
+  unitPrice: number;
+  quantity: number;
+  totalAmount: number;
+  date: string;
+  notes?: string;
+  createdAt?: any;
+}
+
+interface ProductInstallmentRecord {
+  id: string;
+  purchasedProductId: string;
+  name?: string;
+  amount: number;
+  date: string;
+  mode: string;
+  status: "Paid" | "Pending";
+  createdAt?: any;
 }
 
 // Haversine formula to compute exact distance in meters between two GPS coordinates
@@ -300,8 +333,34 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ClientMember | null>(null);
   const [loadingClient, setLoadingClient] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "profile" | "payments" | "trainers" | "diet" | "attendance"
+    "profile" | "payments" | "trainers" | "diet" | "attendance" | "products"
   >("profile");
+
+  // Tab 6: Products & Purchases State
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+  const [purchasedProducts, setPurchasedProducts] = useState<PurchasedProductRecord[]>([]);
+  const [productInstallments, setProductInstallments] = useState<ProductInstallmentRecord[]>([]);
+
+  // Purchased Product Modal State
+  const [isPurchaseProductModalOpen, setIsPurchaseProductModalOpen] = useState(false);
+  const [editingPurchasedProductId, setEditingPurchasedProductId] = useState<string | null>(null);
+  const [selectedCatalogProductId, setSelectedCatalogProductId] = useState("");
+  const [purchasedProdName, setPurchasedProdName] = useState("");
+  const [purchasedUnitPrice, setPurchasedUnitPrice] = useState("");
+  const [purchasedQuantity, setPurchasedQuantity] = useState("1");
+  const [purchasedDate, setPurchasedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [purchasedNotes, setPurchasedNotes] = useState("");
+  const [purchasedImageUrl, setPurchasedImageUrl] = useState("");
+
+  // Product Installment Modal State
+  const [isProdInstallmentModalOpen, setIsProdInstallmentModalOpen] = useState(false);
+  const [editingProdInstallmentId, setEditingProdInstallmentId] = useState<string | null>(null);
+  const [targetPurchasedProductId, setTargetPurchasedProductId] = useState<string>("");
+  const [prodInstName, setProdInstName] = useState("Installment Payment");
+  const [prodInstAmount, setProdInstAmount] = useState("");
+  const [prodInstDate, setProdInstDate] = useState(new Date().toISOString().split("T")[0]);
+  const [prodInstMode, setProdInstMode] = useState("UPI");
+  const [prodInstStatus, setProdInstStatus] = useState<"Paid" | "Pending">("Paid");
 
   // Tab 1: Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -484,6 +543,50 @@ export default function ClientDetailPage() {
     return () => unsub();
   }, [clientId]);
 
+  // 7. Fetch Catalog Products Collection (for product dropdown)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "products"), (snapshot) => {
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as CatalogProduct[];
+      setCatalogProducts(list);
+    });
+    return () => unsub();
+  }, []);
+
+  // 8. Fetch Purchased Products Subcollection
+  useEffect(() => {
+    if (!clientId) return;
+    const unsub = onSnapshot(
+      collection(db, "clients", clientId, "purchased_products"),
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as PurchasedProductRecord[];
+        setPurchasedProducts(list);
+      }
+    );
+    return () => unsub();
+  }, [clientId]);
+
+  // 9. Fetch Product Installments Subcollection
+  useEffect(() => {
+    if (!clientId) return;
+    const unsub = onSnapshot(
+      collection(db, "clients", clientId, "product_installments"),
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as ProductInstallmentRecord[];
+        setProductInstallments(list);
+      }
+    );
+    return () => unsub();
+  }, [clientId]);
+
   // Camera Stream Auto-Binding & Hands-Free Automatic Face Scan Trigger
   useEffect(() => {
     if (isCameraActive && streamRef.current) {
@@ -582,7 +685,14 @@ export default function ClientDetailPage() {
   // Reusable Custom Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
-    type: "assigned_plan" | "installment" | "trainer" | "diet" | "attendance";
+    type:
+      | "assigned_plan"
+      | "installment"
+      | "trainer"
+      | "diet"
+      | "attendance"
+      | "purchased_product"
+      | "product_installment";
     title: string;
     message: string;
   } | null>(null);
@@ -602,6 +712,10 @@ export default function ClientDetailPage() {
         await deleteDoc(doc(db, "clients", clientId, "diets", deleteTarget.id));
       } else if (deleteTarget.type === "attendance") {
         await deleteDoc(doc(db, "clients", clientId, "attendance", deleteTarget.id));
+      } else if (deleteTarget.type === "purchased_product") {
+        await deleteDoc(doc(db, "clients", clientId, "purchased_products", deleteTarget.id));
+      } else if (deleteTarget.type === "product_installment") {
+        await deleteDoc(doc(db, "clients", clientId, "product_installments", deleteTarget.id));
       }
       setDeleteTarget(null);
     } catch (err) {
@@ -670,11 +784,44 @@ export default function ClientDetailPage() {
   const handleSaveInstallment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !instAmount) return;
+
+    const enteredAmount = parseFloat(instAmount) || 0;
+    if (enteredAmount <= 0) {
+      alert("Installment amount must be greater than 0.");
+      return;
+    }
+
+    // Check maximum allowed for this assigned plan
+    const matchedPlan = assignedPlans.find((p) => p.id === targetAssignedPlanId);
+    if (matchedPlan) {
+      const otherPaidSum = installments
+        .filter(
+          (i) =>
+            i.assignedPlanId === targetAssignedPlanId &&
+            i.id !== editingInstallmentId &&
+            i.status === "Paid"
+        )
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      const maxAllowed = Math.max(0, matchedPlan.totalAmount - otherPaidSum);
+
+      if (instStatus === "Paid" && enteredAmount > maxAllowed) {
+        alert(
+          `Cannot save installment of ₹${enteredAmount.toLocaleString(
+            "en-IN"
+          )}!\n\nIt exceeds the remaining due balance of ₹${maxAllowed.toLocaleString(
+            "en-IN"
+          )} for plan "${matchedPlan.planName}".`
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const instData = {
         assignedPlanId: targetAssignedPlanId,
-        amount: parseFloat(instAmount),
+        amount: enteredAmount,
         date: instDate,
         mode: instMode,
         status: instStatus,
@@ -821,6 +968,200 @@ export default function ClientDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // --- TAB 6: PRODUCTS & PURCHASES HANDLERS ---
+  const handleOpenPurchaseProductModal = (p?: PurchasedProductRecord) => {
+    if (p) {
+      setEditingPurchasedProductId(p.id);
+      setSelectedCatalogProductId(p.productId || "");
+      setPurchasedProdName(p.productName);
+      setPurchasedUnitPrice(p.unitPrice.toString());
+      setPurchasedQuantity(p.quantity.toString());
+      setPurchasedDate(p.date);
+      setPurchasedNotes(p.notes || "");
+      setPurchasedImageUrl(p.imageUrl || "");
+    } else {
+      setEditingPurchasedProductId(null);
+      if (catalogProducts.length > 0) {
+        setSelectedCatalogProductId(catalogProducts[0].id);
+        setPurchasedProdName(catalogProducts[0].name);
+        setPurchasedUnitPrice(catalogProducts[0].price.toString());
+        setPurchasedImageUrl(catalogProducts[0].imageUrl || "");
+      } else {
+        setSelectedCatalogProductId("");
+        setPurchasedProdName("");
+        setPurchasedUnitPrice("");
+        setPurchasedImageUrl("");
+      }
+      setPurchasedQuantity("1");
+      setPurchasedDate(new Date().toISOString().split("T")[0]);
+      setPurchasedNotes("");
+    }
+    setIsPurchaseProductModalOpen(true);
+  };
+
+  const handleSelectCatalogProductChange = (prodId: string) => {
+    setSelectedCatalogProductId(prodId);
+    const found = catalogProducts.find((p) => p.id === prodId);
+    if (found) {
+      setPurchasedProdName(found.name);
+      setPurchasedUnitPrice(found.price.toString());
+      setPurchasedImageUrl(found.imageUrl || "");
+    }
+  };
+
+  const handleSavePurchasedProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !purchasedProdName.trim() || !purchasedUnitPrice) return;
+    setSaving(true);
+    try {
+      const uPrice = parseFloat(purchasedUnitPrice) || 0;
+      const qty = parseInt(purchasedQuantity) || 1;
+      const calcTotal = uPrice * qty;
+
+      const pData = {
+        productId: selectedCatalogProductId,
+        productName: purchasedProdName.trim(),
+        unitPrice: uPrice,
+        quantity: qty,
+        totalAmount: calcTotal,
+        date: purchasedDate,
+        notes: purchasedNotes.trim(),
+        imageUrl: purchasedImageUrl || "",
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingPurchasedProductId) {
+        await updateDoc(
+          doc(db, "clients", clientId, "purchased_products", editingPurchasedProductId),
+          pData
+        );
+      } else {
+        await addDoc(collection(db, "clients", clientId, "purchased_products"), {
+          ...pData,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setIsPurchaseProductModalOpen(false);
+    } catch (err) {
+      console.error("Error saving purchased product:", err);
+      alert("Failed to save product purchase.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePurchasedProduct = (id: string, name: string) => {
+    setDeleteTarget({
+      id,
+      type: "purchased_product",
+      title: "Delete Purchased Product",
+      message: `Are you sure you want to delete purchase record for "${name}"?`,
+    });
+  };
+
+  // --- PRODUCT INSTALLMENT HANDLERS ---
+  const handleOpenProdInstallmentModal = (
+    purchasedProductId: string,
+    inst?: ProductInstallmentRecord
+  ) => {
+    setTargetPurchasedProductId(purchasedProductId);
+    if (inst) {
+      setEditingProdInstallmentId(inst.id);
+      setProdInstName(inst.name || "Installment Payment");
+      setProdInstAmount(inst.amount.toString());
+      setProdInstDate(inst.date);
+      setProdInstMode(inst.mode);
+      setProdInstStatus(inst.status);
+    } else {
+      setEditingProdInstallmentId(null);
+      setProdInstName("Installment Payment");
+      setProdInstAmount("");
+      setProdInstDate(new Date().toISOString().split("T")[0]);
+      setProdInstMode("UPI");
+      setProdInstStatus("Paid");
+    }
+    setIsProdInstallmentModalOpen(true);
+  };
+
+  const handleSaveProductInstallment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !prodInstAmount) return;
+
+    const enteredAmount = parseFloat(prodInstAmount) || 0;
+    if (enteredAmount <= 0) {
+      alert("Installment amount must be greater than 0.");
+      return;
+    }
+
+    // Check maximum allowed for this purchased product
+    const matchedPurchasedProd = purchasedProducts.find(
+      (p) => p.id === targetPurchasedProductId
+    );
+    if (matchedPurchasedProd) {
+      const otherPaidSum = productInstallments
+        .filter(
+          (i) =>
+            i.purchasedProductId === targetPurchasedProductId &&
+            i.id !== editingProdInstallmentId &&
+            i.status === "Paid"
+        )
+        .reduce((sum, i) => sum + i.amount, 0);
+
+      const maxAllowed = Math.max(0, matchedPurchasedProd.totalAmount - otherPaidSum);
+
+      if (prodInstStatus === "Paid" && enteredAmount > maxAllowed) {
+        alert(
+          `Cannot save product installment of ₹${enteredAmount.toLocaleString(
+            "en-IN"
+          )}!\n\nIt exceeds the remaining product due balance of ₹${maxAllowed.toLocaleString(
+            "en-IN"
+          )} for "${matchedPurchasedProd.productName}".`
+        );
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const instData = {
+        purchasedProductId: targetPurchasedProductId,
+        name: prodInstName.trim() || "Installment Payment",
+        amount: enteredAmount,
+        date: prodInstDate,
+        mode: prodInstMode,
+        status: prodInstStatus,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingProdInstallmentId) {
+        await updateDoc(
+          doc(db, "clients", clientId, "product_installments", editingProdInstallmentId),
+          instData
+        );
+      } else {
+        await addDoc(collection(db, "clients", clientId, "product_installments"), {
+          ...instData,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setIsProdInstallmentModalOpen(false);
+    } catch (err) {
+      console.error("Error saving product installment:", err);
+      alert("Failed to save product installment.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteProductInstallment = (id: string) => {
+    setDeleteTarget({
+      id,
+      type: "product_installment",
+      title: "Delete Product Installment",
+      message: "Are you sure you want to delete this product payment installment?",
+    });
   };
 
   const handleDeleteAttendance = (id: string, attDate: string) => {
@@ -1150,6 +1491,13 @@ export default function ClientDetailPage() {
     .reduce((sum, i) => sum + i.amount, 0);
   const remainingBalance = Math.max(0, totalBilled - totalPaid);
 
+  // Calculate Product Financial Analytics
+  const totalProductsBilled = purchasedProducts.reduce((sum, p) => sum + p.totalAmount, 0);
+  const totalProductsPaid = productInstallments
+    .filter((i) => i.status === "Paid")
+    .reduce((sum, i) => sum + i.amount, 0);
+  const remainingProductBalance = Math.max(0, totalProductsBilled - totalProductsPaid);
+
   if (loadingClient) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px]">
@@ -1322,6 +1670,18 @@ export default function ClientDetailPage() {
         >
           <CalendarCheck className="h-4 w-4" />
           <span>Attendance ({attendances.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("products")}
+          className={`cursor-pointer flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "products"
+              ? "border-amber-400 text-amber-700 dark:text-amber-400 font-semibold"
+              : "border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          }`}
+        >
+          <Package className="h-4 w-4" />
+          <span>Products & Purchases ({purchasedProducts.length})</span>
         </button>
       </div>
 
@@ -1644,13 +2004,20 @@ export default function ClientDetailPage() {
                           <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                             Installments Breakdown ({planInstallments.length})
                           </span>
-                          <button
-                            onClick={() => handleOpenInstallmentModal(plan.id)}
-                            className="cursor-pointer flex items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>Add Installment</span>
-                          </button>
+                          {planDue <= 0 && plan.totalAmount > 0 ? (
+                            <div className="flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              <span>Payment Completed</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenInstallmentModal(plan.id)}
+                              className="cursor-pointer flex items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>Add Installment</span>
+                            </button>
+                          )}
                         </div>
 
                         {planInstallments.length === 0 ? (
@@ -2093,6 +2460,271 @@ export default function ClientDetailPage() {
         </div>
       )}
 
+      {/* --- TAB 6: PRODUCTS & PURCHASES --- */}
+      {activeTab === "products" && (
+        <div className="flex flex-col gap-5">
+          {/* Analytics Summary */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="text-xs font-semibold text-zinc-500">Total Products Billed</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  ₹{totalProductsBilled.toLocaleString("en-IN")}
+                </span>
+                <span className="text-xs font-semibold text-zinc-400">Purchased</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="text-xs font-semibold text-zinc-500">Total Products Paid</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                  ₹{totalProductsPaid.toLocaleString("en-IN")}
+                </span>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  {totalProductsBilled > 0 ? Math.round((totalProductsPaid / totalProductsBilled) * 100) : 0}% Paid
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="text-xs font-semibold text-zinc-500">Remaining Product Balance</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                  ₹{remainingProductBalance.toLocaleString("en-IN")}
+                </span>
+                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  Due Balance
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Purchased Products Cards List */}
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 mb-4 dark:border-zinc-800">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Purchased Gym Products & Installments
+                </h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  Record purchased supplements, equipment, or merchandise with product-specific installment payments
+                </p>
+              </div>
+              <button
+                onClick={() => handleOpenPurchaseProductModal()}
+                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Purchase Product for Client</span>
+              </button>
+            </div>
+
+            {purchasedProducts.length === 0 ? (
+              <div className="p-8 text-center flex flex-col items-center">
+                <Package className="h-8 w-8 text-zinc-400 mb-2" />
+                <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  No Products Purchased Yet
+                </h4>
+                <p className="text-xs text-zinc-500 mt-1 mb-4">
+                  Click Purchase Product to assign supplements or gym gear for this member.
+                </p>
+                <button
+                  onClick={() => handleOpenPurchaseProductModal()}
+                  className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  + Purchase Product Now
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-5">
+                {purchasedProducts.map((pProd) => {
+                  const pInstallments = productInstallments.filter(
+                    (i) => i.purchasedProductId === pProd.id
+                  );
+                  const pPaid = pInstallments
+                    .filter((i) => i.status === "Paid")
+                    .reduce((sum, i) => sum + i.amount, 0);
+                  const pDue = Math.max(0, pProd.totalAmount - pPaid);
+
+                  return (
+                    <div
+                      key={pProd.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4.5 dark:border-zinc-800 dark:bg-zinc-800/30"
+                    >
+                      {/* Product Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+                        <div className="flex items-center gap-3">
+                          <div className="relative flex h-11 w-11 items-center justify-center rounded-lg bg-amber-400/20 text-amber-700 font-semibold border border-amber-400/40 overflow-hidden shrink-0">
+                            {pProd.imageUrl ? (
+                              <img src={pProd.imageUrl} alt={pProd.productName} className="h-full w-full object-cover" />
+                            ) : (
+                              <Package className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                                {pProd.productName}
+                              </h4>
+                              <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-400/30">
+                                Qty: {pProd.quantity}
+                              </span>
+                            </div>
+                            <span className="text-xs text-zinc-500 font-medium">
+                              Purchased: {pProd.date} • Unit Price: ₹{pProd.unitPrice.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <span className="text-xs text-zinc-400 font-medium block">
+                              Total Billed
+                            </span>
+                            <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                              ₹{pProd.totalAmount.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenPurchaseProductModal(pProd)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                              title="Edit Purchase"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePurchasedProduct(pProd.id, pProd.productName)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                              title="Delete Purchase"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3 text-xs font-semibold">
+                        <div className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800">
+                          <span className="text-zinc-500">Paid Amount</span>
+                          <span className="text-emerald-600">₹{pPaid.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800">
+                          <span className="text-zinc-500">Remaining Balance</span>
+                          <span className="text-amber-600">₹{pDue.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg bg-white p-2.5 border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800">
+                          <span className="text-zinc-500">Progress</span>
+                          <span className="text-zinc-800 dark:text-zinc-200">
+                            {pProd.totalAmount > 0 ? Math.round((pPaid / pProd.totalAmount) * 100) : 0}% Paid
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Product Installments Table */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                            Product Installments Breakdown ({pInstallments.length})
+                          </span>
+                          {pDue <= 0 && pProd.totalAmount > 0 ? (
+                            <div className="flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              <span>Payment Completed</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenProdInstallmentModal(pProd.id)}
+                              className="cursor-pointer flex items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>Add Product Installment</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {pInstallments.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 dark:border-zinc-800">
+                            No product installments recorded yet.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                            <table className="w-full text-left text-xs">
+                              <thead className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40">
+                                <tr>
+                                  <th className="px-4 py-2 font-semibold">Installment Name</th>
+                                  <th className="px-4 py-2 font-semibold">Amount (₹)</th>
+                                  <th className="px-4 py-2 font-semibold">Payment Date</th>
+                                  <th className="px-4 py-2 font-semibold">Mode</th>
+                                  <th className="px-4 py-2 font-semibold">Status</th>
+                                  <th className="px-4 py-2 font-semibold text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                                {pInstallments.map((inst) => (
+                                  <tr key={inst.id} className="hover:bg-zinc-50/50">
+                                    <td className="px-4 py-2.5 font-semibold text-zinc-900 dark:text-zinc-100">
+                                      {inst.name || "Installment Payment"}
+                                    </td>
+                                    <td className="px-4 py-2.5 font-semibold text-amber-700 dark:text-amber-400">
+                                      ₹{inst.amount.toLocaleString("en-IN")}
+                                    </td>
+                                    <td className="px-4 py-2.5 font-medium text-zinc-600 dark:text-zinc-300">
+                                      {inst.date}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium dark:bg-zinc-800">
+                                        {inst.mode}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <span
+                                        className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
+                                          inst.status === "Paid"
+                                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                            : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                        }`}
+                                      >
+                                        {inst.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <button
+                                          onClick={() => handleOpenProdInstallmentModal(pProd.id, inst)}
+                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                          title="Edit Installment"
+                                        >
+                                          <Edit2 className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteProductInstallment(inst.id)}
+                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                          title="Delete Installment"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL: ASSIGN PLAN --- */}
       {isAssignPlanModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -2205,6 +2837,25 @@ export default function ClientDetailPage() {
             </div>
 
             <form onSubmit={handleSaveInstallment} className="mt-4 flex flex-col gap-3">
+              {(() => {
+                const targetPlan = assignedPlans.find((p) => p.id === targetAssignedPlanId);
+                const otherPaid = installments
+                  .filter(
+                    (i) =>
+                      i.assignedPlanId === targetAssignedPlanId &&
+                      i.id !== editingInstallmentId &&
+                      i.status === "Paid"
+                  )
+                  .reduce((sum, i) => sum + i.amount, 0);
+                const maxAllowed = targetPlan ? Math.max(0, targetPlan.totalAmount - otherPaid) : 0;
+                return (
+                  <div className="flex items-center justify-between rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50">
+                    <span>Max Allowed Installment:</span>
+                    <span className="font-bold">₹{maxAllowed.toLocaleString("en-IN")}</span>
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Installment Amount (₹)
@@ -2768,6 +3419,292 @@ export default function ClientDetailPage() {
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   )}
                   <span>Save Out Time</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: PURCHASE PRODUCT FOR CLIENT --- */}
+      {isPurchaseProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Package className="h-4.5 w-4.5 text-amber-500" />
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {editingPurchasedProductId ? "Edit Product Purchase" : "Purchase Product for Client"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsPurchaseProductModalOpen(false)}
+                className="cursor-pointer text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePurchasedProduct} className="mt-4 flex flex-col gap-3">
+              {/* Product Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Select Product from Catalog
+                </label>
+                <select
+                  value={selectedCatalogProductId}
+                  onChange={(e) => handleSelectCatalogProductChange(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                >
+                  <option value="">Custom Product / Select catalog product...</option>
+                  {catalogProducts.map((cp) => (
+                    <option key={cp.id} value={cp.id}>
+                      {cp.name} (₹{cp.price})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Product Name */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Product Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Whey Protein Isolate 1kg"
+                  value={purchasedProdName}
+                  onChange={(e) => setPurchasedProdName(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              {/* Unit Price & Quantity */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Unit Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 2999"
+                    value={purchasedUnitPrice}
+                    onChange={(e) => setPurchasedUnitPrice(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="1"
+                    value={purchasedQuantity}
+                    onChange={(e) => setPurchasedQuantity(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Calculated Total Amount Banner */}
+              <div className="flex items-center justify-between rounded-xl bg-amber-400/10 border border-amber-400/30 p-3">
+                <span className="text-xs font-semibold text-amber-900 dark:text-amber-300">
+                  Total Billed Amount:
+                </span>
+                <span className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                  ₹{((parseFloat(purchasedUnitPrice) || 0) * (parseInt(purchasedQuantity) || 1)).toLocaleString("en-IN")}
+                </span>
+              </div>
+
+              {/* Purchase Date */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Purchase Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={purchasedDate}
+                  onChange={(e) => setPurchasedDate(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Notes / Description (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delivered at counter / Batch #402"
+                  value={purchasedNotes}
+                  onChange={(e) => setPurchasedNotes(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPurchaseProductModalOpen(false)}
+                  className="cursor-pointer rounded-lg border border-zinc-200 px-3.5 py-1.5 text-xs font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  {saving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  <span>Save Purchase</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: ADD PRODUCT INSTALLMENT --- */}
+      {isProdInstallmentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <IndianRupee className="h-4 w-4 text-amber-500" />
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {editingProdInstallmentId ? "Edit Product Installment" : "Record Product Installment"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsProdInstallmentModalOpen(false)}
+                className="cursor-pointer text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProductInstallment} className="mt-4 flex flex-col gap-3">
+              {(() => {
+                const targetProd = purchasedProducts.find((p) => p.id === targetPurchasedProductId);
+                const otherPaid = productInstallments
+                  .filter(
+                    (i) =>
+                      i.purchasedProductId === targetPurchasedProductId &&
+                      i.id !== editingProdInstallmentId &&
+                      i.status === "Paid"
+                  )
+                  .reduce((sum, i) => sum + i.amount, 0);
+                const maxAllowed = targetProd ? Math.max(0, targetProd.totalAmount - otherPaid) : 0;
+                return (
+                  <div className="flex items-center justify-between rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50">
+                    <span>Max Allowed Installment:</span>
+                    <span className="font-bold">₹{maxAllowed.toLocaleString("en-IN")}</span>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Installment Name / Description
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 1st Installment / Down Payment"
+                  value={prodInstName}
+                  onChange={(e) => setProdInstName(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Installment Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  required
+                  placeholder="e.g. 1500"
+                  value={prodInstAmount}
+                  onChange={(e) => setProdInstAmount(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Payment Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={prodInstDate}
+                  onChange={(e) => setProdInstDate(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Payment Mode
+                </label>
+                <select
+                  value={prodInstMode}
+                  onChange={(e) => setProdInstMode(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                >
+                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Credit / Debit Card</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Status
+                </label>
+                <select
+                  value={prodInstStatus}
+                  onChange={(e) => setProdInstStatus(e.target.value as any)}
+                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                >
+                  <option value="Paid">Paid</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+
+              <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsProdInstallmentModalOpen(false)}
+                  className="cursor-pointer rounded-lg border border-zinc-200 px-3.5 py-1.5 text-xs font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  {saving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  <span>Save Installment</span>
                 </button>
               </div>
             </form>
