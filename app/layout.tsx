@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
-import MobileBottomNav from "@/components/MobileBottomNav";
 import { ToastProvider } from "@/components/ToastProvider";
+import { AuthProvider } from "@/components/AuthProvider";
+import AppShell from "@/components/AppShell";
+import RegisterSW from "@/components/RegisterSW";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -13,8 +13,18 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "Brother's Fitness | Admin Portal",
-  description: "Brother's Fitness Gym Management System Admin Portal",
+  title: "Brothers Fitness | Gym Software Admin",
+  description: "Brothers Fitness Gym Management System Admin Portal",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/app-icon.png",
+    apple: "/app-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Brothers Fitness",
+  },
 };
 
 export default function RootLayout({
@@ -29,14 +39,10 @@ export default function RootLayout({
     >
       <body className={`${sora.className} min-h-full flex bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans pb-16 lg:pb-0`}>
         <ToastProvider>
-          <Sidebar />
-          <div className="flex flex-1 flex-col lg:pl-60 min-h-screen">
-            <Header />
-            <main className="flex-1 bg-zinc-50/50 dark:bg-zinc-950 pb-6">
-              {children}
-            </main>
-          </div>
-          <MobileBottomNav />
+          <AuthProvider>
+            <RegisterSW />
+            <AppShell>{children}</AppShell>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

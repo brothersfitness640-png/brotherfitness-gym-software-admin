@@ -19,7 +19,9 @@ import {
   PhoneCall,
   Activity,
   Globe,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 const MENU_CARDS = [
   {
@@ -95,6 +97,8 @@ const MENU_CARDS = [
 ];
 
 export default function MobileMenuPage() {
+  const { logout } = useAuth();
+
   return (
     <PageContainer
       title="Mobile Admin Menu"
@@ -185,6 +189,17 @@ export default function MobileMenuPage() {
           <PhoneCall className="h-3.5 w-3.5" />
           <span>Contact Technical Support</span>
         </Link>
+      </div>
+
+      {/* Logout Action Button */}
+      <div className="mt-4">
+        <button
+          onClick={logout}
+          className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-3 text-xs font-bold text-red-600 hover:bg-red-100 dark:border-red-950/60 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/60 transition-colors shadow-xs"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign Out of Admin Portal</span>
+        </button>
       </div>
     </PageContainer>
   );

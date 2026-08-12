@@ -15,7 +15,9 @@ import {
   Building2,
   UserPlus,
   HelpCircle,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 const navigationItems = [
   {
@@ -77,6 +79,7 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden lg:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
@@ -140,6 +143,14 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        <button
+          onClick={logout}
+          className="cursor-pointer group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-zinc-800 transition-colors mt-2"
+        >
+          <LogOut className="h-4 w-4 shrink-0 text-rose-500" />
+          <span>Sign Out</span>
+        </button>
       </nav>
 
       {/* Footer Branding Info */}

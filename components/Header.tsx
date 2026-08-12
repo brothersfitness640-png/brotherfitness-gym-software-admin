@@ -1,8 +1,11 @@
 "use client";
 
-import { Search, Bell, Eye, Command } from "lucide-react";
+import { Search, Bell, Eye, Command, LogOut } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function Header() {
+  const { logout } = useAuth();
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white/95 px-5 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
       {/* Search Bar matching reference image */}
@@ -23,11 +26,6 @@ export default function Header() {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2.5 ml-auto">
-        <button className="flex h-8.5 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors">
-          <Eye className="h-3.5 w-3.5 text-amber-500" />
-          <span>View as</span>
-        </button>
-
         {/* Notifications Button */}
         <button className="relative flex h-8.5 w-8.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors">
           <Bell className="h-4 w-4" />
@@ -48,6 +46,16 @@ export default function Header() {
             </span>
           </div>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={logout}
+          className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-rose-400 dark:hover:bg-zinc-800 transition-colors"
+          title="Sign Out"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Logout</span>
+        </button>
       </div>
     </header>
   );
