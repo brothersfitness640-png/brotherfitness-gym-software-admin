@@ -13,6 +13,7 @@ import {
   Settings,
   Layers,
   Building2,
+  UserPlus,
 } from "lucide-react";
 
 const navigationItems = [
@@ -30,6 +31,11 @@ const navigationItems = [
     name: "Clients",
     href: "/clients",
     icon: Users,
+  },
+  {
+    name: "Visitors",
+    href: "/visitors",
+    icon: UserPlus,
   },
   {
     name: "Client Attendance",

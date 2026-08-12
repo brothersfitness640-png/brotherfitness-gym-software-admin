@@ -3,6 +3,7 @@ import { Sora } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
+import { ToastProvider } from "@/components/ToastProvider";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -26,13 +27,15 @@ export default function RootLayout({
       className={`${sora.variable} h-full antialiased`}
     >
       <body className={`${sora.className} min-h-full flex bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 font-sans`}>
-        <Sidebar />
-        <div className="flex flex-1 flex-col pl-60 min-h-screen">
-          <Header />
-          <main className="flex-1 bg-zinc-50/50 dark:bg-zinc-950">
-            {children}
-          </main>
-        </div>
+        <ToastProvider>
+          <Sidebar />
+          <div className="flex flex-1 flex-col pl-60 min-h-screen">
+            <Header />
+            <main className="flex-1 bg-zinc-50/50 dark:bg-zinc-950">
+              {children}
+            </main>
+          </div>
+        </ToastProvider>
       </body>
     </html>
   );
