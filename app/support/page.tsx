@@ -95,7 +95,7 @@ export default function SupportPage() {
           {/* Quick WhatsApp Action Button */}
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
             <a
-              href="https://wa.me/919876543210?text=Hello%20GamaNext%20Team%2C%20I%20need%20assistance%20with%20Brother's%20Fitness%20Gym%20Admin%20Software"
+              href="https://wa.me/916281288314?text=Hello%20GamaNext%20Team%2C%20I%20need%20assistance%20with%20Brother's%20Fitness%20Gym%20Admin%20Software"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-xs font-extrabold text-white shadow-lg hover:bg-emerald-600 active:scale-95 transition-all"
@@ -105,7 +105,7 @@ export default function SupportPage() {
             </a>
 
             <a
-              href="tel:+919876543210"
+              href="tel:+916281288314"
               className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/80 px-5 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-700 transition-all"
             >
               <PhoneCall className="h-4 w-4 text-amber-400" />
@@ -132,10 +132,10 @@ export default function SupportPage() {
           </div>
           <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
             <a
-              href="tel:+919876543210"
+              href="tel:+916281288314"
               className="text-xs font-extrabold text-amber-600 dark:text-amber-400 hover:underline flex items-center justify-between"
             >
-              <span>+91 98765 43210</span>
+              <span>+91 62812 88314</span>
               <ChevronRight className="h-3.5 w-3.5" />
             </a>
           </div>
@@ -156,7 +156,7 @@ export default function SupportPage() {
           </div>
           <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
             <a
-              href="https://wa.me/919876543210"
+              href="https://wa.me/916281288314"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center justify-between"
@@ -255,7 +255,7 @@ export default function SupportPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 9876543210 / admin@brotherfitness.com"
+                  placeholder="e.g. 6281288314 / admin@brotherfitness.com"
                   value={contactInfo}
                   onChange={(e) => setContactInfo(e.target.value)}
                   className="h-9.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800 focus:border-amber-500 focus:outline-none"

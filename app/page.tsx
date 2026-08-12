@@ -507,8 +507,6 @@ export default function DashboardPage() {
     <PageContainer
       title="Gym Operations & Financial Dashboard"
       subtitle="Live payment collections breakdown, member attendance analytics, and operational metrics"
-      actionText="Refresh Analytics"
-      onActionClick={() => window.location.reload()}
     >
       {/* Filters & Control Header */}
       <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 mb-6">

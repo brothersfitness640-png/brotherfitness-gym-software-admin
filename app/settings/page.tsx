@@ -166,11 +166,6 @@ export default function SettingsPage() {
     <PageContainer
       title="Business & System Settings"
       subtitle="Configure Brother's Fitness business profile, logo, GST tax parameters, and preferences"
-      actionText="Save All Settings"
-      onActionClick={() => {
-        const formEl = document.getElementById("settings-form") as HTMLFormElement;
-        if (formEl) formEl.requestSubmit();
-      }}
     >
       {/* Settings Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2 overflow-x-auto">
