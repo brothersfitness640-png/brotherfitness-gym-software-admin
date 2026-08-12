@@ -35,6 +35,8 @@ import {
   ShieldCheck,
   Phone,
   Mail,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface StaffMember {
@@ -67,7 +69,13 @@ export default function StaffPage() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeOutletFilter, setActiveOutletFilter] = useState<string>("all");
+  const [activeOutletFilter, setActiveOutletFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeOutletFilter]);
 
   // Staff Modal State
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -373,6 +381,10 @@ export default function StaffPage() {
     return true;
   });
 
+  const totalPages = Math.ceil(filteredStaffList.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedStaffList = filteredStaffList.slice(startIndex, startIndex + itemsPerPage);
+
   const totalPayrollBudget = staffList.reduce(
     (sum, s) => sum + (s.monthlySalary || 0),
     0
@@ -528,93 +540,126 @@ export default function StaffPage() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 p-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredStaffList.map((staff) => (
-              <div
-                key={staff.id}
-                onClick={() => router.push(`/staff/${staff.id}`)}
-                className="group relative flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <div>
-                  {/* Photo & GPS Header */}
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="relative h-14 w-14 rounded-full overflow-hidden bg-amber-400/10 border-2 border-amber-400 shrink-0">
-                      {staff.photoUrl ? (
-                        <img
-                          src={staff.photoUrl}
-                          alt={staff.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-amber-700 font-bold text-lg">
-                          {staff.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
+          <div>
+            <div className="grid gap-4 p-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {paginatedStaffList.map((staff) => (
+                <div
+                  key={staff.id}
+                  onClick={() => router.push(`/staff/${staff.id}`)}
+                  className="group relative flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all cursor-pointer dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div>
+                    {/* Photo & GPS Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="relative h-14 w-14 rounded-full overflow-hidden bg-amber-400/10 border-2 border-amber-400 shrink-0">
+                        {staff.photoUrl ? (
+                          <img
+                            src={staff.photoUrl}
+                            alt={staff.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-amber-700 font-bold text-lg">
+                            {staff.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
 
-                    <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                      {staff.outletName || "Main Branch"}
-                    </span>
-                  </div>
-
-                  {/* Staff Info */}
-                  <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 transition-colors">
-                    {staff.name}
-                  </h4>
-
-                  <div className="mt-2 flex flex-col gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5 text-zinc-400" />
-                      <span>{staff.mobile}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <IndianRupee className="h-3.5 w-3.5 text-amber-500" />
-                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                        ₹{staff.monthlySalary.toLocaleString("en-IN")}/mo
+                      <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                        {staff.outletName || "Main Branch"}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>{staff.acceptableLeaves || 2} Allowed Leaves/mo</span>
-                    </div>
+                    {/* Staff Info */}
+                    <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 transition-colors">
+                      {staff.name}
+                    </h4>
 
-                    {staff.latitude && staff.longitude && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                        <MapPin className="h-3.5 w-3.5 text-amber-500" />
-                        <span>GPS Registered</span>
+                    <div className="mt-2 flex flex-col gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                        <span>{staff.mobile}</span>
                       </div>
-                    )}
+
+                      <div className="flex items-center gap-1.5">
+                        <IndianRupee className="h-3.5 w-3.5 text-amber-500" />
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                          ₹{staff.monthlySalary.toLocaleString("en-IN")}/mo
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                        <span>{staff.acceptableLeaves || 2} Allowed Leaves/mo</span>
+                      </div>
+
+                      {staff.latitude && staff.longitude && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                          <MapPin className="h-3.5 w-3.5 text-amber-500" />
+                          <span>GPS Registered</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                    <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>View Details →</span>
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleOpenEditStaffModal(staff, e)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                        title="Edit Staff"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteStaffClick(staff, e)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                        title="Delete Staff"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                {/* Card Actions */}
-                <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <Eye className="h-3.5 w-3.5" />
-                    <span>View Details →</span>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredStaffList.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredStaffList.length}</strong> staff members
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
                   </span>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => handleOpenEditStaffModal(staff, e)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                      title="Edit Staff"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteStaffClick(staff, e)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                      title="Delete Staff"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>

@@ -40,6 +40,8 @@ import {
   TrendingDown,
   Check,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface HolidayRecord {
@@ -118,6 +120,13 @@ export default function PayrollPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeOutletFilter, setActiveOutletFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"payroll" | "holidays">("payroll");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedMonth, activeOutletFilter, activeTab]);
 
   // Payslip Modal State
   const [isPayslipModalOpen, setIsPayslipModalOpen] = useState(false);
@@ -352,6 +361,10 @@ export default function PayrollPage() {
   const computedStaffPayrolls = filteredStaffList.map((staff) =>
     computeStaffPayrollForMonth(staff, selectedMonth)
   );
+
+  const totalPages = Math.ceil(computedStaffPayrolls.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedStaffPayrolls = computedStaffPayrolls.slice(startIndex, startIndex + itemsPerPage);
 
   // Overall Analytics Summary for Selected Month & Outlet Filter
   const totalBaseBudget = computedStaffPayrolls.reduce((sum, c) => sum + c.baseSalary, 0);
@@ -705,126 +718,240 @@ export default function PayrollPage() {
                 <p className="text-xs text-zinc-500 mt-1 mb-4">Add staff members to calculate and generate monthly salary payslips.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Staff Employee</th>
-                      <th className="px-4 py-3 font-semibold">Branch Outlet</th>
-                      <th className="px-4 py-3 font-semibold">Base Salary (30d)</th>
-                      <th className="px-4 py-3 font-semibold">Attendance Summary</th>
-                      <th className="px-4 py-3 font-semibold">Leave Deductions</th>
-                      <th className="px-4 py-3 font-semibold">Advance Deductions</th>
-                      <th className="px-4 py-3 font-semibold">Net Salary To Credit</th>
-                      <th className="px-4 py-3 font-semibold">Payslip Status</th>
-                      <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                    {computedStaffPayrolls.map((calc) => (
-                      <tr key={calc.staff.id} className="hover:bg-zinc-50/50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full overflow-hidden bg-amber-400/10 border border-amber-400 shrink-0">
-                              {calc.staff.photoUrl ? (
-                                <img src={calc.staff.photoUrl} alt={calc.staff.name} className="h-full w-full object-cover" />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center font-bold text-amber-700 text-xs">
-                                  {calc.staff.name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <span className="font-bold text-zinc-900 dark:text-zinc-100 block">{calc.staff.name}</span>
-                              <span className="text-[11px] text-zinc-400 font-medium">{calc.staff.mobile}</span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300">
-                          <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                            {calc.staff.outletName}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
-                          ₹{calc.baseSalary.toLocaleString("en-IN")}
-                          <span className="text-[10px] text-zinc-400 font-medium block">₹{calc.dailyRate}/day</span>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-zinc-700 dark:text-zinc-300 block">
-                            {calc.presentDays} Present • {calc.holidaysCount} Holidays
-                          </span>
-                          <span className="text-[11px] text-zinc-400 font-medium block">
-                            {calc.absentDays} Absents ({calc.acceptableLeaves} Allowed)
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 font-semibold text-red-600 dark:text-red-400">
-                          -₹{calc.leaveDeduction.toLocaleString("en-IN")}
-                          {calc.excessLeaves > 0 && (
-                            <span className="text-[10px] text-red-500 font-medium block">({calc.excessLeaves} excess days)</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3 font-semibold text-amber-700 dark:text-amber-400">
-                          -₹{calc.advanceDeduction.toLocaleString("en-IN")}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block">
-                            ₹{calc.netSalary.toLocaleString("en-IN")}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {calc.isSaved ? (
-                            <span className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-300">
-                              ✓ Payslip Generated
-                            </span>
-                          ) : (
-                            <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">
-                              Pending Generation
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleSaveOrUpdatePayslip(calc)}
-                              disabled={saving}
-                              className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500 shadow-xs"
-                              title="Update / Save Payslip"
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                              <span>{calc.isSaved ? "Update Payslip" : "Save Payslip"}</span>
-                            </button>
-
-                            {calc.isSaved && (
-                              <button
-                                onClick={() => {
-                                  setViewingPayslip({
-                                    ...calc.existingPayslip!,
-                                    staffName: calc.staff.name,
-                                    outletName: calc.staff.outletName,
-                                    mobile: calc.staff.mobile,
-                                  });
-                                  setIsPayslipModalOpen(true);
-                                }}
-                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                                title="View Payslip"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </button>
+              <div>
+                {/* Mobile & Tablet Card View (< md) */}
+                <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 overflow-hidden">
+                  {paginatedStaffPayrolls.map((calc) => (
+                    <div key={calc.staff.id} className="p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full overflow-hidden bg-amber-400/10 border border-amber-400 shrink-0">
+                            {calc.staff.photoUrl ? (
+                              <img src={calc.staff.photoUrl} alt={calc.staff.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center font-bold text-amber-700 text-xs">
+                                {calc.staff.name.charAt(0).toUpperCase()}
+                              </div>
                             )}
                           </div>
-                        </td>
+                          <div>
+                            <span className="font-bold text-zinc-900 dark:text-zinc-100 text-sm block">{calc.staff.name}</span>
+                            <span className="text-xs text-zinc-500">{calc.staff.outletName}</span>
+                          </div>
+                        </div>
+
+                        {calc.isSaved ? (
+                          <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">
+                            ✓ Generated
+                          </span>
+                        ) : (
+                          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600">
+                            Pending
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                        <div className="bg-zinc-50 dark:bg-zinc-800/60 p-2 rounded-lg">
+                          <span className="text-[10px] text-zinc-400 block font-medium">Base Salary</span>
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100">₹{calc.baseSalary.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="bg-zinc-50 dark:bg-zinc-800/60 p-2 rounded-lg">
+                          <span className="text-[10px] text-zinc-400 block font-medium">Net Salary</span>
+                          <span className="font-extrabold text-emerald-600 dark:text-emerald-400">₹{calc.netSalary.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
+                        <span>Attendance: <strong>{calc.presentDays} Present</strong> • {calc.absentDays} Absents</span>
+                        <span className="text-red-500 font-semibold">-₹{calc.leaveDeduction.toLocaleString("en-IN")}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                        <button
+                          onClick={() => handleSaveOrUpdatePayslip(calc)}
+                          disabled={saving}
+                          className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-500 shadow-xs"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>{calc.isSaved ? "Update" : "Save"} Payslip</span>
+                        </button>
+
+                        {calc.isSaved && (
+                          <button
+                            onClick={() => {
+                              setViewingPayslip({
+                                ...calc.existingPayslip!,
+                                staffName: calc.staff.name,
+                                outletName: calc.staff.outletName,
+                                mobile: calc.staff.mobile,
+                              });
+                              setIsPayslipModalOpen(true);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+                            title="View Payslip"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table View (>= md) */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Staff Employee</th>
+                        <th className="px-4 py-3 font-semibold">Branch Outlet</th>
+                        <th className="px-4 py-3 font-semibold">Base Salary (30d)</th>
+                        <th className="px-4 py-3 font-semibold">Attendance Summary</th>
+                        <th className="px-4 py-3 font-semibold">Leave Deductions</th>
+                        <th className="px-4 py-3 font-semibold">Advance Deductions</th>
+                        <th className="px-4 py-3 font-semibold">Net Salary To Credit</th>
+                        <th className="px-4 py-3 font-semibold">Payslip Status</th>
+                        <th className="px-4 py-3 font-semibold text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                      {paginatedStaffPayrolls.map((calc) => (
+                        <tr key={calc.staff.id} className="hover:bg-zinc-50/50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-9 w-9 rounded-full overflow-hidden bg-amber-400/10 border border-amber-400 shrink-0">
+                                {calc.staff.photoUrl ? (
+                                  <img src={calc.staff.photoUrl} alt={calc.staff.name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center font-bold text-amber-700 text-xs">
+                                    {calc.staff.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <span className="font-bold text-zinc-900 dark:text-zinc-100 block">{calc.staff.name}</span>
+                                <span className="text-[11px] text-zinc-400 font-medium">{calc.staff.mobile}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-300">
+                            <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                              {calc.staff.outletName}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                            ₹{calc.baseSalary.toLocaleString("en-IN")}
+                            <span className="text-[10px] text-zinc-400 font-medium block">₹{calc.dailyRate}/day</span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-zinc-700 dark:text-zinc-300 block">
+                              {calc.presentDays} Present • {calc.holidaysCount} Holidays
+                            </span>
+                            <span className="text-[11px] text-zinc-400 font-medium block">
+                              {calc.absentDays} Absents ({calc.acceptableLeaves} Allowed)
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3 font-semibold text-red-600 dark:text-red-400">
+                            -₹{calc.leaveDeduction.toLocaleString("en-IN")}
+                            {calc.excessLeaves > 0 && (
+                              <span className="text-[10px] text-red-500 font-medium block">({calc.excessLeaves} excess days)</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3 font-semibold text-amber-700 dark:text-amber-400">
+                            -₹{calc.advanceDeduction.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block">
+                              ₹{calc.netSalary.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {calc.isSaved ? (
+                              <span className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-300">
+                                ✓ Payslip Generated
+                              </span>
+                            ) : (
+                              <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">
+                                Pending Generation
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleSaveOrUpdatePayslip(calc)}
+                                disabled={saving}
+                                className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500 shadow-xs"
+                                title="Update / Save Payslip"
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                                <span>{calc.isSaved ? "Update Payslip" : "Save Payslip"}</span>
+                              </button>
+
+                              {calc.isSaved && (
+                                <button
+                                  onClick={() => {
+                                    setViewingPayslip({
+                                      ...calc.existingPayslip!,
+                                      staffName: calc.staff.name,
+                                      outletName: calc.staff.outletName,
+                                      mobile: calc.staff.mobile,
+                                    });
+                                    setIsPayslipModalOpen(true);
+                                  }}
+                                  className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                  title="View Payslip"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs mt-3 rounded-xl">
+                    <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                      Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                      <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, computedStaffPayrolls.length)}</strong> of{" "}
+                      <strong className="text-zinc-900 dark:text-zinc-100">{computedStaffPayrolls.length}</strong> payroll records
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        <ChevronLeft className="h-4 w-4" /> Previous
+                      </button>
+                      <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        Next <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

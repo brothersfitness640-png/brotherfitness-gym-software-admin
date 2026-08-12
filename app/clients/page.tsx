@@ -36,6 +36,8 @@ import {
   RefreshCw,
   Upload,
   Globe,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface MembershipPlan {
@@ -99,6 +101,12 @@ export default function ClientsPage() {
   const streamRef = useRef<MediaStream | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // Real-time Firestore Listeners (clients, plans, outlets)
   useEffect(() => {
@@ -396,6 +404,10 @@ export default function ClientsPage() {
       c.outletName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <PageContainer
       title="Clients"
@@ -516,115 +528,232 @@ export default function ClientsPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Client</th>
-                  <th className="px-5 py-3 font-semibold">Mobile & Email</th>
-                  <th className="px-5 py-3 font-semibold">Assigned Plan</th>
-                  <th className="px-5 py-3 font-semibold">Gym Outlet</th>
-                  <th className="px-5 py-3 font-semibold">GPS Coordinates</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {filteredClients.map((client) => (
-                  <tr
-                    key={client.id}
-                    onClick={() => handleRowClick(client.id)}
-                    className="cursor-pointer hover:bg-amber-400/5 dark:hover:bg-amber-400/10 transition-colors group"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-700 font-semibold text-xs shadow-xs">
-                          {client.photoUrl ? (
-                            <img
-                              src={client.photoUrl}
-                              alt={client.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            client.name.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm group-hover:text-amber-600 transition-colors">
-                            {client.name}
-                          </span>
-                          <span className="text-[11px] text-zinc-500 truncate max-w-[160px]">
-                            {client.address}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium text-zinc-800 dark:text-zinc-200 flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-zinc-400" />
-                          {client.mobile}
-                        </span>
-                        {client.email && (
-                          <span className="text-[11px] text-zinc-500 flex items-center gap-1">
-                            <Mail className="h-3 w-3 text-zinc-400" />
-                            {client.email}
-                          </span>
+          <div>
+            {/* Mobile & Tablet Card View (< md) */}
+            <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+              {paginatedClients.map((client) => (
+                <div
+                  key={client.id}
+                  onClick={() => handleRowClick(client.id)}
+                  className="p-4 flex flex-col gap-3 cursor-pointer hover:bg-amber-400/5 dark:hover:bg-amber-400/10 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-700 font-bold text-sm">
+                        {client.photoUrl ? (
+                          <img src={client.photoUrl} alt={client.name} className="h-full w-full object-cover" />
+                        ) : (
+                          client.name.charAt(0).toUpperCase()
                         )}
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                        <Layers className="h-3 w-3" />
-                        {client.planName}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                        <Building2 className="h-3 w-3 text-zinc-500" />
-                        {client.outletName}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {client.latitude && client.longitude ? (
-                        <div className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50">
-                          <Globe className="h-3 w-3" />
-                          <span>
-                            {client.latitude.toFixed(4)}, {client.longitude.toFixed(4)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-400 text-[11px]">Not Captured</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleRowClick(client.id)}
-                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-amber-400 hover:text-black dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
-                          title="View Client Details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleOpenEditModal(client, e)}
-                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
-                          title="Edit Client"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
-                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
-                          title="Delete Client"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{client.name}</h4>
+                        <span className="text-xs text-zinc-500 line-clamp-1">{client.address}</span>
                       </div>
-                    </td>
+                    </div>
+
+                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30 shrink-0">
+                      <Layers className="h-3 w-3" />
+                      {client.planName}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                    <a
+                      href={`tel:${client.mobile}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      {client.mobile}
+                    </a>
+
+                    <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                      <Building2 className="h-3 w-3 text-zinc-500" />
+                      {client.outletName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    {client.latitude && client.longitude ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                        <Globe className="h-3 w-3" />
+                        GPS Tagged
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-zinc-400">No GPS</span>
+                    )}
+
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleRowClick(client.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                        title="View Profile"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleOpenEditModal(client, e)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                        title="Edit Client"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 dark:border-red-900/40 dark:text-red-400"
+                        title="Delete Client"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Client</th>
+                    <th className="px-5 py-3 font-semibold">Mobile & Email</th>
+                    <th className="px-5 py-3 font-semibold">Assigned Plan</th>
+                    <th className="px-5 py-3 font-semibold">Gym Outlet</th>
+                    <th className="px-5 py-3 font-semibold">GPS Coordinates</th>
+                    <th className="px-5 py-3 font-semibold text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {paginatedClients.map((client) => (
+                    <tr
+                      key={client.id}
+                      onClick={() => handleRowClick(client.id)}
+                      className="cursor-pointer hover:bg-amber-400/5 dark:hover:bg-amber-400/10 transition-colors group"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-700 font-semibold text-xs shadow-xs">
+                            {client.photoUrl ? (
+                              <img
+                                src={client.photoUrl}
+                                alt={client.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              client.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm group-hover:text-amber-600 transition-colors">
+                              {client.name}
+                            </span>
+                            <span className="text-[11px] text-zinc-500 truncate max-w-[160px]">
+                              {client.address}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-zinc-800 dark:text-zinc-200 flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-zinc-400" />
+                            {client.mobile}
+                          </span>
+                          {client.email && (
+                            <span className="text-[11px] text-zinc-500 flex items-center gap-1">
+                              <Mail className="h-3 w-3 text-zinc-400" />
+                              {client.email}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                          <Layers className="h-3 w-3" />
+                          {client.planName}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                          <Building2 className="h-3 w-3 text-zinc-500" />
+                          {client.outletName}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {client.latitude && client.longitude ? (
+                          <div className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50">
+                            <Globe className="h-3 w-3" />
+                            <span>
+                              {client.latitude.toFixed(4)}, {client.longitude.toFixed(4)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 text-[11px]">Not Captured</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleRowClick(client.id)}
+                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-amber-400 hover:text-black dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                            title="View Client Details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenEditModal(client, e)}
+                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                            title="Edit Client"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
+                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                            title="Delete Client"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredClients.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredClients.length}</strong> clients
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

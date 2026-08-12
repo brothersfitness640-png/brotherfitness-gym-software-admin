@@ -259,6 +259,13 @@ export default function ClientAttendancePage() {
   const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "present" | "in_gym" | "unmarked">("all");
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDate, selectedOutlet, statusFilter]);
+
   // Selected Client for Attendance Flow
   const [activeClient, setActiveClient] = useState<ClientMember | null>(null);
 
@@ -406,6 +413,10 @@ export default function ClientAttendancePage() {
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
 
   // Statistics calculation for selected date
   const totalClientsCount = clients.length;
@@ -985,166 +996,292 @@ export default function ClientAttendancePage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40">
-                <tr>
-                  <th className="px-5 py-3.5 font-semibold">Member</th>
-                  <th className="px-5 py-3.5 font-semibold">Date</th>
-                  <th className="px-5 py-3.5 font-semibold">In Time</th>
-                  <th className="px-5 py-3.5 font-semibold">Out Time</th>
-                  <th className="px-5 py-3.5 font-semibold">Security Verification</th>
-                  <th className="px-5 py-3.5 font-semibold">Status</th>
-                  <th className="px-5 py-3.5 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {filteredClients.map((client) => {
-                  const att = attendanceMapByClientId.get(client.id);
-                  const isMarked = !!att;
+          <div>
+            {/* Mobile & Tablet Card View (< md) */}
+            <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+              {paginatedClients.map((client) => {
+                const att = attendanceMapByClientId.get(client.id);
+                const isMarked = !!att;
 
-                  return (
-                    <tr key={client.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors">
-                      {/* Client Info */}
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-800 font-semibold text-xs">
-                            {client.photoUrl ? (
-                              <img
-                                src={client.photoUrl}
-                                alt={client.name}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              client.name.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
-                              {client.name}
-                            </span>
-                            <div className="flex items-center gap-2 text-[11px] text-zinc-500 font-medium">
-                              <span className="flex items-center gap-0.5">
-                                <Phone className="h-3 w-3 text-zinc-400" />
-                                {client.mobile}
-                              </span>
-                              <span>•</span>
-                              <span className="flex items-center gap-0.5">
-                                <Building2 className="h-3 w-3 text-zinc-400" />
-                                {client.outletName}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Date */}
-                      <td className="px-5 py-3.5 font-semibold text-zinc-700 dark:text-zinc-300">
-                        {selectedDate}
-                      </td>
-
-                      {/* In Time */}
-                      <td className="px-5 py-3.5">
-                        {att?.inTime ? (
-                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                            <Clock className="h-3.5 w-3.5" />
-                            {att.inTime}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 font-medium">--</span>
-                        )}
-                      </td>
-
-                      {/* Out Time */}
-                      <td className="px-5 py-3.5">
-                        {att?.outTime && att.outTime !== "--" ? (
-                          <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
-                            <LogOut className="h-3.5 w-3.5" />
-                            {att.outTime}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 font-medium">--</span>
-                        )}
-                      </td>
-
-                      {/* Security Verification Badges */}
-                      <td className="px-5 py-3.5">
-                        {att ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/50">
-                              <ShieldCheck className="h-3 w-3" />
-                              GPS: {att.radiusDistance || 12}m
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-400/30 dark:text-amber-300">
-                              <Camera className="h-3 w-3" />
-                              Face: {att.faceMatchScore || 94}%
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-zinc-400 text-[11px]">Unverified</span>
-                        )}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="px-5 py-3.5">
-                        {isMarked ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Present
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                            Not Marked
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Action Buttons */}
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {!isMarked ? (
-                            <button
-                              onClick={() => handleStartAttendanceFlowForClient(client)}
-                              className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black shadow-xs hover:bg-amber-500 transition-transform active:scale-95"
-                            >
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                              <span>+ Mark Attendance</span>
-                            </button>
+                return (
+                  <div key={client.id} className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-800 font-bold text-sm">
+                          {client.photoUrl ? (
+                            <img src={client.photoUrl} alt={client.name} className="h-full w-full object-cover" />
                           ) : (
-                            <>
-                              <button
-                                onClick={() => handleOpenOutTimeModal(client, att)}
-                                className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
-                                title="Set / Edit Out Time"
-                              >
-                                <LogOut className="h-3.5 w-3.5" />
-                                <span>{att.outTime ? "Edit Out Time" : "+ Out Time"}</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleOpenEditModal(client, att)}
-                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                                title="Edit Full Log"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
-
-                              <button
-                                onClick={() => handleDeleteAttendanceClick(client, att)}
-                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                                title="Delete Log"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
+                            client.name.charAt(0).toUpperCase()
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <div>
+                          <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{client.name}</h4>
+                          <span className="text-xs text-zinc-500 font-medium">{client.outletName} • {client.mobile}</span>
+                        </div>
+                      </div>
+
+                      {isMarked ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Present
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                          Not Marked
+                        </span>
+                      )}
+                    </div>
+
+                    {isMarked && (
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-zinc-50 dark:bg-zinc-800/50 p-2.5 rounded-xl">
+                        <div>
+                          <span className="text-[10px] text-zinc-400 block font-medium">In Time</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {att.inTime || "--"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-zinc-400 block font-medium">Out Time</span>
+                          <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <LogOut className="h-3 w-3" /> {att.outTime && att.outTime !== "--" ? att.outTime : "--"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      {!isMarked ? (
+                        <button
+                          onClick={() => handleStartAttendanceFlowForClient(client)}
+                          className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-black shadow-xs hover:bg-amber-500"
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>+ Mark Attendance</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleOpenOutTimeModal(client, att)}
+                            className="cursor-pointer flex h-8 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
+                          >
+                            <LogOut className="h-3.5 w-3.5" />
+                            <span>{att.outTime ? "Edit Out Time" : "+ Out Time"}</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEditModal(client, att)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteAttendanceClick(client, att)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40">
+                  <tr>
+                    <th className="px-5 py-3.5 font-semibold">Member</th>
+                    <th className="px-5 py-3.5 font-semibold">Date</th>
+                    <th className="px-5 py-3.5 font-semibold">In Time</th>
+                    <th className="px-5 py-3.5 font-semibold">Out Time</th>
+                    <th className="px-5 py-3.5 font-semibold">Security Verification</th>
+                    <th className="px-5 py-3.5 font-semibold">Status</th>
+                    <th className="px-5 py-3.5 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {paginatedClients.map((client) => {
+                    const att = attendanceMapByClientId.get(client.id);
+                    const isMarked = !!att;
+
+                    return (
+                      <tr key={client.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors">
+                        {/* Client Info */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-800 font-semibold text-xs">
+                              {client.photoUrl ? (
+                                <img
+                                  src={client.photoUrl}
+                                  alt={client.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                client.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                                {client.name}
+                              </span>
+                              <div className="flex items-center gap-2 text-[11px] text-zinc-500 font-medium">
+                                <span className="flex items-center gap-0.5">
+                                  <Phone className="h-3 w-3 text-zinc-400" />
+                                  {client.mobile}
+                                </span>
+                                <span>•</span>
+                                <span className="flex items-center gap-0.5">
+                                  <Building2 className="h-3 w-3 text-zinc-400" />
+                                  {client.outletName}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="px-5 py-3.5 font-semibold text-zinc-700 dark:text-zinc-300">
+                          {selectedDate}
+                        </td>
+
+                        {/* In Time */}
+                        <td className="px-5 py-3.5">
+                          {att?.inTime ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                              <Clock className="h-3.5 w-3.5" />
+                              {att.inTime}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400 font-medium">--</span>
+                          )}
+                        </td>
+
+                        {/* Out Time */}
+                        <td className="px-5 py-3.5">
+                          {att?.outTime && att.outTime !== "--" ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                              <LogOut className="h-3.5 w-3.5" />
+                              {att.outTime}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400 font-medium">--</span>
+                          )}
+                        </td>
+
+                        {/* Security Verification Badges */}
+                        <td className="px-5 py-3.5">
+                          {att ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/50">
+                                <ShieldCheck className="h-3 w-3" />
+                                GPS: {att.radiusDistance || 12}m
+                              </span>
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-400/30 dark:text-amber-300">
+                                <Camera className="h-3 w-3" />
+                                Face: {att.faceMatchScore || 94}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-400 text-[11px]">Unverified</span>
+                          )}
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="px-5 py-3.5">
+                          {isMarked ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Present
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                              Not Marked
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {!isMarked ? (
+                              <button
+                                onClick={() => handleStartAttendanceFlowForClient(client)}
+                                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black shadow-xs hover:bg-amber-500 transition-transform active:scale-95"
+                              >
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                                <span>+ Mark Attendance</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleOpenOutTimeModal(client, att)}
+                                  className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
+                                  title="Set / Edit Out Time"
+                                >
+                                  <LogOut className="h-3.5 w-3.5" />
+                                  <span>{att.outTime ? "Edit Out Time" : "+ Out Time"}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenEditModal(client, att)}
+                                  className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                  title="Edit Full Log"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleDeleteAttendanceClick(client, att)}
+                                  className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                  title="Delete Log"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredClients.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredClients.length}</strong> client records
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

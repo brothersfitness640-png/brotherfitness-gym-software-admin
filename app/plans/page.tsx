@@ -27,6 +27,8 @@ import {
   Filter,
   Loader2,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface MembershipPlan {
@@ -50,6 +52,12 @@ export default function PlansPage() {
   const [planAmount, setPlanAmount] = useState("");
   const [planDuration, setPlanDuration] = useState("1 Month");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // Real-time listener for Firestore "plans" collection
   useEffect(() => {
@@ -161,6 +169,10 @@ export default function PlansPage() {
   const filteredPlans = plans.filter((plan) =>
     plan.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filteredPlans.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPlans = filteredPlans.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <PageContainer
@@ -284,65 +296,140 @@ export default function PlansPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Plan Name</th>
-                  <th className="px-5 py-3 font-semibold">Duration</th>
-                  <th className="px-5 py-3 font-semibold">Amount (₹)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {filteredPlans.map((plan) => (
-                  <tr
-                    key={plan.id}
-                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/20 font-semibold">
-                          <Layers className="h-4 w-4" />
-                        </div>
-                        <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
-                          {plan.name}
+          <div>
+            {/* Mobile & Tablet Card View (< md) */}
+            <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+              {paginatedPlans.map((plan) => (
+                <div key={plan.id} className="p-4 flex items-center justify-between gap-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/20 font-bold">
+                      <Layers className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{plan.name}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                          {plan.duration || "1 Month"}
+                        </span>
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                          ₹{plan.amount.toLocaleString("en-IN")}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-zinc-600 dark:text-zinc-300 font-medium">
-                      <span className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800 dark:text-zinc-300">
-                        {plan.duration || "1 Month"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                        <IndianRupee className="h-3 w-3" />
-                        {plan.amount.toLocaleString("en-IN")}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleEditClick(plan)}
-                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
-                          title="Edit Plan"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePlan(plan.id, plan.name)}
-                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
-                          title="Delete Plan"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleEditClick(plan)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                      title="Edit Plan"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeletePlan(plan.id, plan.name)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
+                      title="Delete Plan"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Plan Name</th>
+                    <th className="px-5 py-3 font-semibold">Duration</th>
+                    <th className="px-5 py-3 font-semibold">Amount (₹)</th>
+                    <th className="px-5 py-3 font-semibold text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {paginatedPlans.map((plan) => (
+                    <tr
+                      key={plan.id}
+                      className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/20 font-semibold">
+                            <Layers className="h-4 w-4" />
+                          </div>
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                            {plan.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-zinc-600 dark:text-zinc-300 font-medium">
+                        <span className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800 dark:text-zinc-300">
+                          {plan.duration || "1 Month"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                          <IndianRupee className="h-3 w-3" />
+                          {plan.amount.toLocaleString("en-IN")}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleEditClick(plan)}
+                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                            title="Edit Plan"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePlan(plan.id, plan.name)}
+                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                            title="Delete Plan"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredPlans.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredPlans.length}</strong> plans
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

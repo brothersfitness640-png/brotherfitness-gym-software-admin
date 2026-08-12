@@ -34,6 +34,8 @@ import {
   Clock,
   MessageSquare,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export type VisitorStatus =
@@ -72,6 +74,12 @@ export default function VisitorsPage() {
   // Search and Filter State
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -227,6 +235,10 @@ export default function VisitorsPage() {
     });
   }, [visitors, searchTerm, statusFilter]);
 
+  const totalPages = Math.ceil(filteredVisitors.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedVisitors = filteredVisitors.slice(startIndex, startIndex + itemsPerPage);
+
   // Status Badge Colors Helper
   const getStatusBadgeStyle = (st: VisitorStatus) => {
     switch (st) {
@@ -329,111 +341,222 @@ export default function VisitorsPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
-                <tr>
-                  <th className="px-5 py-3.5 font-bold">Visitor Details</th>
-                  <th className="px-5 py-3.5 font-bold">Mobile & Contact</th>
-                  <th className="px-5 py-3.5 font-bold">Address</th>
-                  <th className="px-5 py-3.5 font-bold">Status</th>
-                  <th className="px-5 py-3.5 font-bold">Description / Notes</th>
-                  <th className="px-5 py-3.5 font-bold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {filteredVisitors.map((v) => (
-                  <tr
-                    key={v.id}
-                    className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
-                  >
-                    {/* Name */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400 font-bold text-xs border border-amber-400/20">
-                          {v.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <span className="font-bold text-zinc-900 dark:text-zinc-100 text-xs block">
-                            {v.name}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 block mt-0.5">
-                            Added: {v.createdAt?.toDate ? v.createdAt.toDate().toLocaleDateString() : "Recent"}
-                          </span>
-                        </div>
+          <div>
+            {/* Mobile & Tablet Card View (< md) */}
+            <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+              {paginatedVisitors.map((v) => (
+                <div
+                  key={v.id}
+                  className="p-4 flex flex-col gap-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400 font-bold text-xs border border-amber-400/20">
+                        {v.name.charAt(0).toUpperCase()}
                       </div>
-                    </td>
-
-                    {/* Mobile & Email */}
-                    <td className="px-5 py-4 font-medium">
-                      <div className="flex items-center gap-1.5 text-zinc-900 dark:text-zinc-100 font-bold">
-                        <Phone className="h-3.5 w-3.5 text-amber-500" />
-                        <span>{v.mobile}</span>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{v.name}</h4>
+                        <span className="text-[10px] text-zinc-400 block mt-0.5">
+                          Added: {v.createdAt?.toDate ? v.createdAt.toDate().toLocaleDateString() : "Recent"}
+                        </span>
                       </div>
-                      {v.email ? (
-                        <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 mt-1 text-[11px]">
-                          <Mail className="h-3.5 w-3.5 text-zinc-400" />
-                          <span className="truncate max-w-[140px]">{v.email}</span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-zinc-400 mt-0.5 block italic">No email</span>
-                      )}
-                    </td>
+                    </div>
 
-                    {/* Address */}
-                    <td className="px-5 py-4 max-w-[180px]">
-                      <div className="flex items-start gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
-                        <MapPin className="h-3.5 w-3.5 text-zinc-400 shrink-0 mt-0.5" />
-                        <span className="line-clamp-2">{v.address}</span>
-                      </div>
-                    </td>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${getStatusBadgeStyle(
+                        v.status
+                      )}`}
+                    >
+                      {v.status}
+                    </span>
+                  </div>
 
-                    {/* Status Badge */}
-                    <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border ${getStatusBadgeStyle(
-                          v.status
-                        )}`}
+                  <div className="flex flex-col gap-1 text-xs text-zinc-700 dark:text-zinc-300">
+                    <div className="flex items-center justify-between">
+                      <a
+                        href={`tel:${v.mobile}`}
+                        className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400 hover:underline"
                       >
-                        {v.status}
-                      </span>
-                    </td>
+                        <Phone className="h-3.5 w-3.5" />
+                        <span>{v.mobile}</span>
+                      </a>
 
-                    {/* Description / Notes */}
-                    <td className="px-5 py-4 max-w-[240px]">
-                      {v.description ? (
-                        <div className="flex items-start gap-1.5 text-zinc-600 dark:text-zinc-400 text-xs">
-                          <MessageSquare className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">{v.description}</span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-zinc-400 italic">No description provided</span>
+                      {v.email && (
+                        <span className="text-[11px] text-zinc-500 truncate max-w-[140px]">{v.email}</span>
                       )}
-                    </td>
+                    </div>
 
-                    {/* Actions */}
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenEditModal(v)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 transition-colors"
-                          title="Edit Visitor"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
-                          title="Delete Visitor"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                    <div className="flex items-start gap-1.5 text-zinc-600 dark:text-zinc-400 mt-1">
+                      <MapPin className="h-3.5 w-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{v.address}</span>
+                    </div>
+
+                    {v.description && (
+                      <div className="flex items-start gap-1.5 text-zinc-600 dark:text-zinc-400 mt-1">
+                        <MessageSquare className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{v.description}</span>
                       </div>
-                    </td>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                    <button
+                      onClick={() => handleOpenEditModal(v)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                      title="Edit Visitor"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
+                      title="Delete Visitor"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
+                  <tr>
+                    <th className="px-5 py-3.5 font-bold">Visitor Details</th>
+                    <th className="px-5 py-3.5 font-bold">Mobile & Contact</th>
+                    <th className="px-5 py-3.5 font-bold">Address</th>
+                    <th className="px-5 py-3.5 font-bold">Status</th>
+                    <th className="px-5 py-3.5 font-bold">Description / Notes</th>
+                    <th className="px-5 py-3.5 font-bold text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {paginatedVisitors.map((v) => (
+                    <tr
+                      key={v.id}
+                      className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
+                    >
+                      {/* Name */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400/10 text-amber-600 dark:text-amber-400 font-bold text-xs border border-amber-400/20">
+                            {v.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-bold text-zinc-900 dark:text-zinc-100 text-xs block">
+                              {v.name}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 block mt-0.5">
+                              Added: {v.createdAt?.toDate ? v.createdAt.toDate().toLocaleDateString() : "Recent"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Mobile & Email */}
+                      <td className="px-5 py-4 font-medium">
+                        <div className="flex items-center gap-1.5 text-zinc-900 dark:text-zinc-100 font-bold">
+                          <Phone className="h-3.5 w-3.5 text-amber-500" />
+                          <span>{v.mobile}</span>
+                        </div>
+                        {v.email ? (
+                          <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 mt-1 text-[11px]">
+                            <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                            <span className="truncate max-w-[140px]">{v.email}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-zinc-400 mt-0.5 block italic">No email</span>
+                        )}
+                      </td>
+
+                      {/* Address */}
+                      <td className="px-5 py-4 max-w-[180px]">
+                        <div className="flex items-start gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
+                          <MapPin className="h-3.5 w-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2">{v.address}</span>
+                        </div>
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border ${getStatusBadgeStyle(
+                            v.status
+                          )}`}
+                        >
+                          {v.status}
+                        </span>
+                      </td>
+
+                      {/* Description / Notes */}
+                      <td className="px-5 py-4 max-w-[240px]">
+                        {v.description ? (
+                          <div className="flex items-start gap-1.5 text-zinc-600 dark:text-zinc-400 text-xs">
+                            <MessageSquare className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">{v.description}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-zinc-400 italic">No description provided</span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(v)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 transition-colors"
+                            title="Edit Visitor"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
+                            title="Delete Visitor"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredVisitors.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredVisitors.length}</strong> visitors
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

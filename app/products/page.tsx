@@ -32,6 +32,8 @@ import {
   Tag,
   ImageIcon,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface CategoryItem {
@@ -58,7 +60,13 @@ export default function ProductsPage() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 45;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeCategoryFilter]);
 
   // Category Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -337,6 +345,10 @@ export default function ProductsPage() {
     return true;
   });
 
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+
   const totalInventoryValue = products.reduce(
     (sum, p) => sum + p.price * p.stock,
     0
@@ -532,78 +544,111 @@ export default function ProductsPage() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 p-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((prod) => (
-              <div
-                key={prod.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <div>
-                  {/* Image Container */}
-                  <div className="relative h-44 w-full rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 mb-3 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
-                    {prod.imageUrl ? (
-                      <img
-                        src={prod.imageUrl}
-                        alt={prod.name}
-                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1 text-zinc-400">
-                        <ImageIcon className="h-8 w-8" />
-                        <span className="text-[10px] font-medium">No Image</span>
-                      </div>
-                    )}
+          <div>
+            <div className="grid gap-4 p-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {paginatedProducts.map((prod) => (
+                <div
+                  key={prod.id}
+                  className="group relative flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div>
+                    {/* Image Container */}
+                    <div className="relative h-44 w-full rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 mb-3 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
+                      {prod.imageUrl ? (
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-zinc-400">
+                          <ImageIcon className="h-8 w-8" />
+                          <span className="text-[10px] font-medium">No Image</span>
+                        </div>
+                      )}
 
-                    {/* Category Badge Pill */}
-                    <span className="absolute top-2.5 left-2.5 rounded-full bg-black/70 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-400/30">
-                      {prod.categoryName || "General"}
-                    </span>
+                      {/* Category Badge Pill */}
+                      <span className="absolute top-2.5 left-2.5 rounded-full bg-black/70 backdrop-blur-xs px-2.5 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-400/30">
+                        {prod.categoryName || "General"}
+                      </span>
+                    </div>
+
+                    {/* Product Title */}
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">
+                      {prod.name}
+                    </h4>
+
+                    {/* Price & Stock info */}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-base font-semibold text-amber-700 dark:text-amber-400">
+                        ₹{prod.price.toLocaleString("en-IN")}
+                      </span>
+
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
+                          prod.stock > 5
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : prod.stock > 0
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                            : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
+                        }`}
+                      >
+                        {prod.stock > 0 ? `${prod.stock} in stock` : "Out of Stock"}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Product Title */}
-                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">
-                    {prod.name}
-                  </h4>
-
-                  {/* Price & Stock info */}
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-base font-semibold text-amber-700 dark:text-amber-400">
-                      ₹{prod.price.toLocaleString("en-IN")}
-                    </span>
-
-                    <span
-                      className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
-                        prod.stock > 5
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                          : prod.stock > 0
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                          : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
-                      }`}
+                  {/* Card Actions */}
+                  <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                    <button
+                      onClick={(e) => handleOpenEditProductModal(prod, e)}
+                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                      title="Edit Product"
                     >
-                      {prod.stock > 0 ? `${prod.stock} in stock` : "Out of Stock"}
-                    </span>
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteProductClick(prod, e)}
+                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                      title="Delete Product"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                {/* Card Actions */}
-                <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+                  Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredProducts.length)}</strong> of{" "}
+                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredProducts.length}</strong> products
+                </span>
+
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={(e) => handleOpenEditProductModal(prod, e)}
-                    className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                    title="Edit Product"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
                   >
-                    <Edit2 className="h-3.5 w-3.5" />
+                    <ChevronLeft className="h-4 w-4" /> Previous
                   </button>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
                   <button
-                    onClick={(e) => handleDeleteProductClick(prod, e)}
-                    className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                    title="Delete Product"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 font-bold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    Next <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>

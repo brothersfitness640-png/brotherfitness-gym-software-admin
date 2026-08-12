@@ -14,6 +14,7 @@ import {
   Layers,
   Building2,
   UserPlus,
+  HelpCircle,
 } from "lucide-react";
 
 const navigationItems = [
@@ -63,6 +64,11 @@ const navigationItems = [
     icon: BadgeIndianRupee,
   },
   {
+    name: "Support & Contact",
+    href: "/support",
+    icon: HelpCircle,
+  },
+  {
     name: "Settings",
     href: "/settings",
     icon: Settings,
@@ -73,7 +79,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden lg:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
       {/* Gym Brand / Logo Header */}
       <div className="flex h-14 items-center gap-3 border-b border-zinc-200 px-4 dark:border-zinc-800">
         <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-black shadow-xs">
