@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PageContainer from "@/components/PageContainer";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CustomDatePicker from "@/components/CustomDatePicker";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -1002,12 +1003,9 @@ export default function PayrollPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Holiday Date *
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={holidayDate}
-                  onChange={(e) => setHolidayDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setHolidayDate(val)}
                 />
               </div>
 

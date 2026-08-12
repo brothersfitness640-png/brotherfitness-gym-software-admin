@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CustomDatePicker from "@/components/CustomDatePicker";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -2357,19 +2358,19 @@ export default function ClientDetailPage() {
           {attFilter === "custom" && (
             <div className="flex items-center gap-3 border-b border-zinc-200 px-5 py-2.5 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-800/30 text-xs font-semibold">
               <span className="text-zinc-500">From Date:</span>
-              <input
-                type="date"
-                value={fromDateFilter}
-                onChange={(e) => setFromDateFilter(e.target.value)}
-                className="h-7 rounded border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
-              />
+              <div className="w-36">
+                <CustomDatePicker
+                  value={fromDateFilter}
+                  onChange={(val) => setFromDateFilter(val)}
+                />
+              </div>
               <span className="text-zinc-500">To Date:</span>
-              <input
-                type="date"
-                value={toDateFilter}
-                onChange={(e) => setToDateFilter(e.target.value)}
-                className="h-7 rounded border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
-              />
+              <div className="w-36">
+                <CustomDatePicker
+                  value={toDateFilter}
+                  onChange={(val) => setToDateFilter(val)}
+                />
+              </div>
             </div>
           )}
 
@@ -2790,12 +2791,9 @@ export default function ClientDetailPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Start Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={planStartDate}
-                  onChange={(e) => setPlanStartDate(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setPlanStartDate(val)}
                 />
               </div>
 
@@ -2874,12 +2872,9 @@ export default function ClientDetailPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Payment Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={instDate}
-                  onChange={(e) => setInstDate(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setInstDate(val)}
                 />
               </div>
 
@@ -2893,10 +2888,9 @@ export default function ClientDetailPage() {
                     onChange={(e) => setInstMode(e.target.value)}
                     className="h-8.5 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
                   >
-                    <option value="UPI">UPI / GPay</option>
+                    <option value="UPI">UPI</option>
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
                   </select>
                 </div>
 
@@ -3527,12 +3521,9 @@ export default function ClientDetailPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Purchase Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={purchasedDate}
-                  onChange={(e) => setPurchasedDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setPurchasedDate(val)}
                 />
               </div>
 
@@ -3647,12 +3638,9 @@ export default function ClientDetailPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Payment Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={prodInstDate}
-                  onChange={(e) => setProdInstDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setProdInstDate(val)}
                 />
               </div>
 
@@ -3665,10 +3653,9 @@ export default function ClientDetailPage() {
                   onChange={(e) => setProdInstMode(e.target.value)}
                   className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
                 >
-                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="UPI">UPI</option>
                   <option value="Cash">Cash</option>
-                  <option value="Card">Credit / Debit Card</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Card">Card</option>
                 </select>
               </div>
 

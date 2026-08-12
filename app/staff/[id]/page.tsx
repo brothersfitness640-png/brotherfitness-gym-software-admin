@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import PageContainer from "@/components/PageContainer";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CustomDatePicker from "@/components/CustomDatePicker";
 import { db } from "@/lib/firebase";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -1843,12 +1844,9 @@ export default function StaffDetailPage() {
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Issue Date
                   </label>
-                  <input
-                    type="date"
-                    required
+                  <CustomDatePicker
                     value={advDate}
-                    onChange={(e) => setAdvDate(e.target.value)}
-                    className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                    onChange={(val) => setAdvDate(val)}
                   />
                 </div>
               </div>
@@ -1943,12 +1941,9 @@ export default function StaffDetailPage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Deduction Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={advInstDate}
-                  onChange={(e) => setAdvInstDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setAdvInstDate(val)}
                 />
               </div>
 
@@ -1961,9 +1956,9 @@ export default function StaffDetailPage() {
                   onChange={(e) => setAdvInstMode(e.target.value)}
                   className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
                 >
-                  <option value="Deducted from Salary">Deducted from Salary</option>
-                  <option value="Cash">Cash Return</option>
-                  <option value="UPI">UPI / Bank Transfer</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
                 </select>
               </div>
 

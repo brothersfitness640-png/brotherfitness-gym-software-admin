@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import PageContainer from "@/components/PageContainer";
 import DeleteConfirmModal from "@/components/DeleteConfirmModal";
+import CustomDatePicker from "@/components/CustomDatePicker";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -794,12 +795,10 @@ export default function ClientAttendancePage() {
           </button>
 
           {/* Date Input */}
-          <div className="relative">
-            <input
-              type="date"
+          <div className="relative w-40">
+            <CustomDatePicker
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900 shadow-xs focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+              onChange={(val) => setSelectedDate(val)}
             />
           </div>
         </div>
@@ -1434,12 +1433,9 @@ export default function ClientAttendancePage() {
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Attendance Date
                 </label>
-                <input
-                  type="date"
-                  required
+                <CustomDatePicker
                   value={editAttDate}
-                  onChange={(e) => setEditAttDate(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(val) => setEditAttDate(val)}
                 />
               </div>
 

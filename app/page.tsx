@@ -34,6 +34,8 @@ import {
   User,
   Calendar,
 } from "lucide-react";
+import CustomDatePicker from "@/components/CustomDatePicker";
+
 
 // Interfaces for Firestore Collections
 interface ClientMember {
@@ -621,22 +623,20 @@ export default function DashboardPage() {
               <Calendar className="h-4 w-4 text-amber-500" />
               <span>Select Date Range:</span>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">From:</label>
-              <input
-                type="date"
+            <div className="flex items-center gap-2 w-44">
+              <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">From:</span>
+              <CustomDatePicker
                 value={customFromDate}
-                onChange={(e) => setCustomFromDate(e.target.value)}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm"
+                onChange={(val) => setCustomFromDate(val)}
+                placeholder="From Date"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">To:</label>
-              <input
-                type="date"
+            <div className="flex items-center gap-2 w-44">
+              <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">To:</span>
+              <CustomDatePicker
                 value={customToDate}
-                onChange={(e) => setCustomToDate(e.target.value)}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm"
+                onChange={(val) => setCustomToDate(val)}
+                placeholder="To Date"
               />
             </div>
           </div>
