@@ -44,6 +44,9 @@ interface MembershipPlan {
   id: string;
   name: string;
   amount: number;
+  duration?: string;
+  outletId?: string;
+  outletName?: string;
 }
 
 interface GymOutlet {
@@ -184,14 +187,32 @@ export default function ClientsPage() {
   }, [isCameraActive]);
 
   // Modal Handlers
+  const handleOutletChange = (newOutletId: string) => {
+    setSelectedOutletId(newOutletId);
+    const validPlans = plans.filter(
+      (p) => !p.outletId || p.outletId === "all" || p.outletId === newOutletId
+    );
+    if (validPlans.length > 0 && !validPlans.some((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(validPlans[0].id);
+    }
+  };
+
   const handleOpenAddModal = () => {
     setEditingId(null);
     setName("");
     setMobile("");
     setEmail("");
     setAddress("");
-    if (plans.length > 0) setSelectedPlanId(plans[0].id);
-    if (outlets.length > 0) setSelectedOutletId(outlets[0].id);
+    const initialOutletId = outlets.length > 0 ? outlets[0].id : "";
+    setSelectedOutletId(initialOutletId);
+    const validPlans = plans.filter(
+      (p) => !p.outletId || p.outletId === "all" || p.outletId === initialOutletId
+    );
+    if (validPlans.length > 0) {
+      setSelectedPlanId(validPlans[0].id);
+    } else if (plans.length > 0) {
+      setSelectedPlanId(plans[0].id);
+    }
     setLatitude(null);
     setLongitude(null);
     setGpsError("");
@@ -396,6 +417,10 @@ export default function ClientsPage() {
   const handleRowClick = (clientId: string) => {
     router.push(`/clients/${clientId}`);
   };
+
+  const availablePlans = plans.filter(
+    (p) => !p.outletId || p.outletId === "all" || p.outletId === selectedOutletId
+  );
 
   const filteredClients = clients.filter(
     (c) =>
@@ -927,8 +952,30 @@ export default function ClientsPage() {
                 />
               </div>
 
-              {/* Plan Selection & Outlet Selection (2 cols) */}
+              {/* Outlet Selection & Plan Selection (2 cols) */}
               <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Gym Outlet <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={selectedOutletId}
+                    onChange={(e) => handleOutletChange(e.target.value)}
+                    className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
+                  >
+                    {outlets.length === 0 ? (
+                      <option value="">No outlets configured yet</option>
+                    ) : (
+                      outlets.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Membership Plan <span className="text-red-500">*</span>
@@ -939,34 +986,12 @@ export default function ClientsPage() {
                     onChange={(e) => setSelectedPlanId(e.target.value)}
                     className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
                   >
-                    {plans.length === 0 ? (
-                      <option value="">No plans configured yet</option>
+                    {availablePlans.length === 0 ? (
+                      <option value="">No plans configured for this outlet</option>
                     ) : (
-                      plans.map((p) => (
+                      availablePlans.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (₹{p.amount})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Gym Outlet <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={selectedOutletId}
-                    onChange={(e) => setSelectedOutletId(e.target.value)}
-                    className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
-                  >
-                    {outlets.length === 0 ? (
-                      <option value="">No outlets configured yet</option>
-                    ) : (
-                      outlets.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name}
+                          {p.name} (₹{p.amount}){p.outletId && p.outletId !== "all" ? ` [${p.outletName || "Branch"}]` : ""}
                         </option>
                       ))
                     )}

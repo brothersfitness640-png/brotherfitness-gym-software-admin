@@ -29,7 +29,16 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  Globe,
 } from "lucide-react";
+
+interface GymOutlet {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+}
 
 interface MembershipPlan {
   id: string;
@@ -37,27 +46,66 @@ interface MembershipPlan {
   amount: number;
   duration?: string;
   description?: string;
+  outletId?: string; // Specific outlet ID or "all"
+  outletName?: string; // Name of outlet or "All Outlets"
   createdAt?: any;
+  updatedAt?: any;
 }
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [outlets, setOutlets] = useState<GymOutlet[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Outlet Filter State: "all" or specific outletId
+  const [selectedOutletFilter, setSelectedOutletFilter] = useState<string>("all");
+
   // Form State
   const [planName, setPlanName] = useState("");
   const [planAmount, setPlanAmount] = useState("");
   const [planDuration, setPlanDuration] = useState("1 Month");
+  const [planOutletId, setPlanOutletId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 45;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, selectedOutletFilter]);
+
+  // Real-time listener for Firestore "outlets" collection
+  useEffect(() => {
+    const outletsRef = collection(db, "outlets");
+    const q = query(outletsRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedOutlets: GymOutlet[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as GymOutlet[];
+        setOutlets(fetchedOutlets);
+      },
+      (error) => {
+        console.error("Error fetching outlets:", error);
+        // Fallback snapshot without order
+        const fallbackUnsub = onSnapshot(outletsRef, (snapshot) => {
+          const fetchedOutlets: GymOutlet[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as GymOutlet[];
+          setOutlets(fetchedOutlets);
+        });
+        return () => fallbackUnsub();
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Real-time listener for Firestore "plans" collection
   useEffect(() => {
@@ -97,6 +145,14 @@ export default function PlansPage() {
     setPlanName("");
     setPlanAmount("");
     setPlanDuration("1 Month");
+    // Pre-select current filter if it's a specific outlet, otherwise default to first outlet or "all"
+    if (selectedOutletFilter !== "all") {
+      setPlanOutletId(selectedOutletFilter);
+    } else if (outlets.length > 0) {
+      setPlanOutletId(outlets[0].id);
+    } else {
+      setPlanOutletId("all");
+    }
     setIsModalOpen(true);
   };
 
@@ -105,6 +161,7 @@ export default function PlansPage() {
     setPlanName(plan.name);
     setPlanAmount(plan.amount.toString());
     setPlanDuration(plan.duration || "1 Month");
+    setPlanOutletId(plan.outletId || "all");
     setIsModalOpen(true);
   };
 
@@ -114,20 +171,30 @@ export default function PlansPage() {
 
     setSaving(true);
     try {
+      let finalOutletName = "All Outlets";
+      if (planOutletId !== "all") {
+        const matched = outlets.find((o) => o.id === planOutletId);
+        finalOutletName = matched ? matched.name : "Main Branch";
+      }
+
+      const planData = {
+        name: planName.trim(),
+        amount: parseFloat(planAmount),
+        duration: planDuration,
+        outletId: planOutletId,
+        outletName: finalOutletName,
+      };
+
       if (editingId) {
         // Update Existing Plan
         await updateDoc(doc(db, "plans", editingId), {
-          name: planName.trim(),
-          amount: parseFloat(planAmount),
-          duration: planDuration,
+          ...planData,
           updatedAt: serverTimestamp(),
         });
       } else {
         // Add New Plan
         await addDoc(collection(db, "plans"), {
-          name: planName.trim(),
-          amount: parseFloat(planAmount),
-          duration: planDuration,
+          ...planData,
           createdAt: serverTimestamp(),
         });
       }
@@ -166,27 +233,106 @@ export default function PlansPage() {
     }
   };
 
-  const filteredPlans = plans.filter((plan) =>
-    plan.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter plans based on selected outlet and search query
+  const filteredPlans = plans.filter((plan) => {
+    // Outlet filter
+    if (selectedOutletFilter !== "all") {
+      const planOutlet = plan.outletId || "all";
+      if (planOutlet !== selectedOutletFilter && planOutlet !== "all") {
+        return false;
+      }
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = plan.name.toLowerCase().includes(q);
+      const matchOutlet = (plan.outletName || "All Outlets").toLowerCase().includes(q);
+      const matchDuration = (plan.duration || "").toLowerCase().includes(q);
+      return matchName || matchOutlet || matchDuration;
+    }
+
+    return true;
+  });
 
   const totalPages = Math.ceil(filteredPlans.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedPlans = filteredPlans.slice(startIndex, startIndex + itemsPerPage);
 
+  const currentOutletName =
+    selectedOutletFilter === "all"
+      ? "All Outlets"
+      : outlets.find((o) => o.id === selectedOutletFilter)?.name || "Selected Branch";
+
   return (
     <PageContainer
       title="Plans"
-      subtitle="Configure gym membership packages and pricing tiers"
+      subtitle="Configure gym membership packages and outlet-specific pricing tiers"
       actionText="Add Plan"
       onActionClick={handleOpenAddModal}
     >
+      {/* Outlet Tabs Selector */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setSelectedOutletFilter("all")}
+          className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+            selectedOutletFilter === "all"
+              ? "bg-amber-400 text-black border-amber-400 shadow-xs"
+              : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <Building2 className="h-3.5 w-3.5" />
+          <span>All Outlets</span>
+          <span
+            className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+              selectedOutletFilter === "all"
+                ? "bg-black/15 text-black"
+                : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+            }`}
+          >
+            {plans.length}
+          </span>
+        </button>
+
+        {outlets.map((outlet) => {
+          const isSelected = selectedOutletFilter === outlet.id;
+          const outletPlanCount = plans.filter(
+            (p) => (p.outletId || "all") === outlet.id || p.outletId === "all" || !p.outletId
+          ).length;
+          return (
+            <button
+              key={outlet.id}
+              type="button"
+              onClick={() => setSelectedOutletFilter(outlet.id)}
+              className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                isSelected
+                  ? "bg-amber-400 text-black border-amber-400 shadow-xs"
+                  : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span>{outlet.name}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  isSelected
+                    ? "bg-black/15 text-black"
+                    : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                }`}
+              >
+                {outletPlanCount}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Top Summary Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Total Active Plans
+              {selectedOutletFilter === "all" ? "Total Active Plans" : `${currentOutletName} Plans`}
             </span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 text-amber-600 dark:text-amber-400">
               <Layers className="h-4 w-4" />
@@ -194,10 +340,10 @@ export default function PlansPage() {
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-              {plans.length}
+              {filteredPlans.length}
             </span>
             <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              Configured
+              {selectedOutletFilter === "all" ? "All Outlets" : "Branch Active"}
             </span>
           </div>
         </div>
@@ -213,8 +359,8 @@ export default function PlansPage() {
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-              {plans.length > 0
-                ? `₹${Math.min(...plans.map((p) => p.amount))}`
+              {filteredPlans.length > 0
+                ? `₹${Math.min(...filteredPlans.map((p) => p.amount)).toLocaleString("en-IN")}`
                 : "₹0"}
             </span>
             <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -226,17 +372,19 @@ export default function PlansPage() {
         <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Firebase Storage
+              Gym Outlets
             </span>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 text-amber-600 dark:text-amber-400">
-              <Sparkles className="h-4 w-4" />
+              <Building2 className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="h-4 w-4" /> Connected
+            <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+              {outlets.length}
             </span>
-            <span className="text-[11px] font-medium text-zinc-400">Live Sync</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Branches
+            </span>
           </div>
         </div>
       </div>
@@ -250,16 +398,37 @@ export default function PlansPage() {
               Membership Packages
             </span>
             <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-400/30">
-              {plans.length} Total
+              {filteredPlans.length} Showing
             </span>
+            {selectedOutletFilter !== "all" && (
+              <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                Filtered: {currentOutletName}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Quick Outlet Selector on filter bar */}
+            <div className="relative">
+              <select
+                value={selectedOutletFilter}
+                onChange={(e) => setSelectedOutletFilter(e.target.value)}
+                className="cursor-pointer h-8.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-medium text-zinc-700 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 dark:focus:border-amber-400"
+              >
+                <option value="all">🏢 All Outlets ({plans.length})</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search plan name..."
+                placeholder="Search plan name, branch..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8.5 w-48 rounded-lg border border-zinc-200 bg-zinc-50 pl-8 pr-3 text-xs font-medium outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:focus:border-amber-400"
@@ -282,10 +451,16 @@ export default function PlansPage() {
               <Layers className="h-6 w-6" />
             </div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              {searchQuery ? "No matching plans found" : "No Membership Plans Yet"}
+              {searchQuery
+                ? "No matching plans found"
+                : selectedOutletFilter !== "all"
+                ? `No plans configured for ${currentOutletName}`
+                : "No Membership Plans Yet"}
             </h3>
             <p className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-5">
-              Click the Add Plan button to define your gym membership packages.
+              {selectedOutletFilter !== "all"
+                ? `Click Add Plan to configure a membership package specifically for ${currentOutletName}.`
+                : "Click the Add Plan button to define your gym membership packages."}
             </p>
             <button
               onClick={handleOpenAddModal}
@@ -300,14 +475,30 @@ export default function PlansPage() {
             {/* Mobile & Tablet Card View (< md) */}
             <div className="block md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
               {paginatedPlans.map((plan) => (
-                <div key={plan.id} className="p-4 flex items-center justify-between gap-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40">
+                <div
+                  key={plan.id}
+                  className="p-4 flex items-center justify-between gap-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40"
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-700 dark:text-amber-400 border border-amber-400/20 font-bold">
                       <Layers className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">{plan.name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
+                        {plan.name}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {plan.outletId && plan.outletId !== "all" ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-400/20">
+                            <Building2 className="h-3 w-3" />
+                            {plan.outletName || "Branch"}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                            <Globe className="h-3 w-3 text-zinc-400" />
+                            All Outlets
+                          </span>
+                        )}
                         <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                           {plan.duration || "1 Month"}
                         </span>
@@ -321,14 +512,14 @@ export default function PlansPage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => handleEditClick(plan)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                      className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                       title="Edit Plan"
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDeletePlan(plan.id, plan.name)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
+                      className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                       title="Delete Plan"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -344,6 +535,7 @@ export default function PlansPage() {
                 <thead className="border-b border-zinc-200 bg-zinc-50/70 text-zinc-500 uppercase tracking-wider dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Plan Name</th>
+                    <th className="px-5 py-3 font-semibold">Gym Outlet</th>
                     <th className="px-5 py-3 font-semibold">Duration</th>
                     <th className="px-5 py-3 font-semibold">Amount (₹)</th>
                     <th className="px-5 py-3 font-semibold text-right">Actions</th>
@@ -364,6 +556,19 @@ export default function PlansPage() {
                             {plan.name}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {plan.outletId && plan.outletId !== "all" ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400 border border-amber-400/20">
+                            <Building2 className="h-3 w-3" />
+                            {plan.outletName || "Branch Outlet"}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                            <Globe className="h-3 w-3 text-zinc-400" />
+                            All Outlets
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-zinc-600 dark:text-zinc-300 font-medium">
                         <span className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800 dark:text-zinc-300">
@@ -405,8 +610,10 @@ export default function PlansPage() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900 text-xs">
                 <span className="text-zinc-500 dark:text-zinc-400 font-medium">
                   Showing <strong className="text-zinc-900 dark:text-zinc-100">{startIndex + 1}</strong> to{" "}
-                  <strong className="text-zinc-900 dark:text-zinc-100">{Math.min(startIndex + itemsPerPage, filteredPlans.length)}</strong> of{" "}
-                  <strong className="text-zinc-900 dark:text-zinc-100">{filteredPlans.length}</strong> plans
+                  <strong className="text-zinc-900 dark:text-zinc-100">
+                    {Math.min(startIndex + itemsPerPage, filteredPlans.length)}
+                  </strong>{" "}
+                  of <strong className="text-zinc-900 dark:text-zinc-100">{filteredPlans.length}</strong> plans
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -471,6 +678,28 @@ export default function PlansPage() {
                   onChange={(e) => setPlanName(e.target.value)}
                   className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
                 />
+              </div>
+
+              {/* Gym Outlet Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Gym Outlet <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={planOutletId}
+                  onChange={(e) => setPlanOutletId(e.target.value)}
+                  className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
+                >
+                  <option value="all">🌐 All Outlets (Common for all branches)</option>
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      🏢 {o.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Assign this plan to a specific branch or make it available across all outlets.
+                </p>
               </div>
 
               {/* Amount (₹) */}
@@ -544,6 +773,7 @@ export default function PlansPage() {
           </div>
         </div>
       )}
+
       {/* Custom Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={!!deleteTarget}
