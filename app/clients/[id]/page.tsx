@@ -70,8 +70,11 @@ interface AssignedPlan {
   id: string;
   planName: string;
   totalAmount: number;
+  basePrice?: number;
+  discount?: number;
   durationMonths: number;
   startDate: string;
+  endDate?: string;
   notes?: string;
 }
 
@@ -81,6 +84,9 @@ interface InstallmentRecord {
   amount: number;
   date: string;
   mode: string;
+  splitCash?: number;
+  splitUpi?: number;
+  splitCard?: number;
   status: "Paid" | "Pending";
   note?: string;
 }
@@ -146,8 +152,51 @@ interface ProductInstallmentRecord {
   amount: number;
   date: string;
   mode: string;
+  splitCash?: number;
+  splitUpi?: number;
+  splitCard?: number;
   status: "Paid" | "Pending";
   createdAt?: any;
+}
+
+function computeEndDate(startDateStr: string, months: number): string {
+  try {
+    const d = new Date(startDateStr);
+    if (isNaN(d.getTime())) return startDateStr;
+    d.setMonth(d.getMonth() + (months || 1));
+    return d.toISOString().split("T")[0];
+  } catch {
+    return startDateStr;
+  }
+}
+
+function getPlanExpiryInfo(endDateStr?: string) {
+  if (!endDateStr) return { isExpired: false, badgeText: "Active", daysText: "Ongoing" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDateStr);
+  end.setHours(0, 0, 0, 0);
+  const diffTime = end.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) {
+    return {
+      isExpired: true,
+      badgeText: "Expired",
+      daysText: `Expired ${Math.abs(diffDays)}d ago`,
+    };
+  } else if (diffDays === 0) {
+    return {
+      isExpired: false,
+      badgeText: "Expires Today",
+      daysText: "Expires Today",
+    };
+  } else {
+    return {
+      isExpired: false,
+      badgeText: "Active",
+      daysText: `${diffDays} days remaining`,
+    };
+  }
 }
 
 // Haversine formula to compute exact distance in meters between two GPS coordinates
@@ -361,6 +410,9 @@ export default function ClientDetailPage() {
   const [prodInstAmount, setProdInstAmount] = useState("");
   const [prodInstDate, setProdInstDate] = useState(new Date().toISOString().split("T")[0]);
   const [prodInstMode, setProdInstMode] = useState("UPI");
+  const [prodInstSplitCash, setProdInstSplitCash] = useState("");
+  const [prodInstSplitUpi, setProdInstSplitUpi] = useState("");
+  const [prodInstSplitCard, setProdInstSplitCard] = useState("");
   const [prodInstStatus, setProdInstStatus] = useState<"Paid" | "Pending">("Paid");
 
   // Tab 1: Profile Edit State
@@ -377,10 +429,15 @@ export default function ClientDetailPage() {
   const [isAssignPlanModalOpen, setIsAssignPlanModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState("6 Months Gold Transformation");
+  const [planBasePrice, setPlanBasePrice] = useState("12000");
+  const [planDiscount, setPlanDiscount] = useState("0");
   const [planTotalAmount, setPlanTotalAmount] = useState("12000");
   const [planDurationMonths, setPlanDurationMonths] = useState("6");
   const [planStartDate, setPlanStartDate] = useState(
     new Date().toISOString().split("T")[0]
+  );
+  const [planEndDate, setPlanEndDate] = useState(
+    computeEndDate(new Date().toISOString().split("T")[0], 6)
   );
 
   const [isInstallmentModalOpen, setIsInstallmentModalOpen] = useState(false);
@@ -389,6 +446,9 @@ export default function ClientDetailPage() {
   const [instAmount, setInstAmount] = useState("");
   const [instDate, setInstDate] = useState(new Date().toISOString().split("T")[0]);
   const [instMode, setInstMode] = useState("UPI");
+  const [instSplitCash, setInstSplitCash] = useState("");
+  const [instSplitUpi, setInstSplitUpi] = useState("");
+  const [instSplitCard, setInstSplitCard] = useState("");
   const [instStatus, setInstStatus] = useState<"Paid" | "Pending">("Paid");
 
   // Tab 3: Trainers State
@@ -436,8 +496,24 @@ export default function ClientDetailPage() {
   const [securityErrorMsg, setSecurityErrorMsg] = useState<string>("");
 
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const toggleCameraFacingMode = async () => {
+    const newMode = cameraFacingMode === "user" ? "environment" : "user";
+    setCameraFacingMode(newMode);
+    stopAttendanceCamera();
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: newMode },
+      });
+      streamRef.current = mediaStream;
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error("Camera flip error:", err);
+    }
+  };
 
   const [attFilter, setAttFilter] = useState<"daily" | "weekly" | "monthly" | "yearly" | "custom">("monthly");
   const [fromDateFilter, setFromDateFilter] = useState("");
@@ -637,17 +713,52 @@ export default function ClientDetailPage() {
     if (plan) {
       setEditingPlanId(plan.id);
       setPlanName(plan.planName);
+      const base = plan.basePrice !== undefined ? plan.basePrice : plan.totalAmount;
+      const disc = plan.discount !== undefined ? plan.discount : 0;
+      setPlanBasePrice(base.toString());
+      setPlanDiscount(disc.toString());
       setPlanTotalAmount(plan.totalAmount.toString());
       setPlanDurationMonths(plan.durationMonths.toString());
       setPlanStartDate(plan.startDate);
+      setPlanEndDate(plan.endDate || computeEndDate(plan.startDate, plan.durationMonths));
     } else {
       setEditingPlanId(null);
       setPlanName("6 Months Gold Transformation");
+      setPlanBasePrice("12000");
+      setPlanDiscount("0");
       setPlanTotalAmount("12000");
       setPlanDurationMonths("6");
-      setPlanStartDate(new Date().toISOString().split("T")[0]);
+      const today = new Date().toISOString().split("T")[0];
+      setPlanStartDate(today);
+      setPlanEndDate(computeEndDate(today, 6));
     }
     setIsAssignPlanModalOpen(true);
+  };
+
+  const handleBasePriceChange = (val: string) => {
+    setPlanBasePrice(val);
+    const base = parseFloat(val) || 0;
+    const disc = parseFloat(planDiscount) || 0;
+    setPlanTotalAmount(Math.max(0, base - disc).toString());
+  };
+
+  const handleDiscountChange = (val: string) => {
+    setPlanDiscount(val);
+    const base = parseFloat(planBasePrice) || 0;
+    const disc = parseFloat(val) || 0;
+    setPlanTotalAmount(Math.max(0, base - disc).toString());
+  };
+
+  const handleDurationChange = (monthsStr: string) => {
+    setPlanDurationMonths(monthsStr);
+    const months = parseInt(monthsStr) || 1;
+    setPlanEndDate(computeEndDate(planStartDate, months));
+  };
+
+  const handleStartDateChange = (dateVal: string) => {
+    setPlanStartDate(dateVal);
+    const months = parseInt(planDurationMonths) || 1;
+    setPlanEndDate(computeEndDate(dateVal, months));
   };
 
   const handleSaveAssignedPlan = async (e: React.FormEvent) => {
@@ -657,9 +768,12 @@ export default function ClientDetailPage() {
     try {
       const planData = {
         planName: planName.trim(),
-        totalAmount: parseFloat(planTotalAmount),
+        basePrice: parseFloat(planBasePrice) || parseFloat(planTotalAmount) || 0,
+        discount: parseFloat(planDiscount) || 0,
+        totalAmount: parseFloat(planTotalAmount) || 0,
         durationMonths: parseInt(planDurationMonths) || 1,
         startDate: planStartDate,
+        endDate: planEndDate || computeEndDate(planStartDate, parseInt(planDurationMonths) || 1),
         updatedAt: serverTimestamp(),
       };
 
@@ -771,12 +885,18 @@ export default function ClientDetailPage() {
       setInstAmount(inst.amount.toString());
       setInstDate(inst.date);
       setInstMode(inst.mode);
+      setInstSplitCash(inst.splitCash ? inst.splitCash.toString() : "");
+      setInstSplitUpi(inst.splitUpi ? inst.splitUpi.toString() : "");
+      setInstSplitCard(inst.splitCard ? inst.splitCard.toString() : "");
       setInstStatus(inst.status);
     } else {
       setEditingInstallmentId(null);
       setInstAmount("");
       setInstDate(new Date().toISOString().split("T")[0]);
       setInstMode("UPI");
+      setInstSplitCash("");
+      setInstSplitUpi("");
+      setInstSplitCard("");
       setInstStatus("Paid");
     }
     setIsInstallmentModalOpen(true);
@@ -784,9 +904,23 @@ export default function ClientDetailPage() {
 
   const handleSaveInstallment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !instAmount) return;
+    if (!clientId) return;
 
-    const enteredAmount = parseFloat(instAmount) || 0;
+    let enteredAmount = parseFloat(instAmount) || 0;
+
+    const cashVal = parseFloat(instSplitCash) || 0;
+    const upiVal = parseFloat(instSplitUpi) || 0;
+    const cardVal = parseFloat(instSplitCard) || 0;
+
+    if (instMode === "Split") {
+      const splitSum = cashVal + upiVal + cardVal;
+      if (splitSum <= 0) {
+        alert("For split payments, please enter at least one method amount (Cash, UPI, Card).");
+        return;
+      }
+      enteredAmount = splitSum;
+    }
+
     if (enteredAmount <= 0) {
       alert("Installment amount must be greater than 0.");
       return;
@@ -825,6 +959,9 @@ export default function ClientDetailPage() {
         amount: enteredAmount,
         date: instDate,
         mode: instMode,
+        splitCash: instMode === "Split" ? cashVal : 0,
+        splitUpi: instMode === "Split" ? upiVal : 0,
+        splitCard: instMode === "Split" ? cardVal : 0,
         status: instStatus,
         updatedAt: serverTimestamp(),
       };
@@ -1074,6 +1211,9 @@ export default function ClientDetailPage() {
       setProdInstAmount(inst.amount.toString());
       setProdInstDate(inst.date);
       setProdInstMode(inst.mode);
+      setProdInstSplitCash(inst.splitCash ? inst.splitCash.toString() : "");
+      setProdInstSplitUpi(inst.splitUpi ? inst.splitUpi.toString() : "");
+      setProdInstSplitCard(inst.splitCard ? inst.splitCard.toString() : "");
       setProdInstStatus(inst.status);
     } else {
       setEditingProdInstallmentId(null);
@@ -1081,6 +1221,9 @@ export default function ClientDetailPage() {
       setProdInstAmount("");
       setProdInstDate(new Date().toISOString().split("T")[0]);
       setProdInstMode("UPI");
+      setProdInstSplitCash("");
+      setProdInstSplitUpi("");
+      setProdInstSplitCard("");
       setProdInstStatus("Paid");
     }
     setIsProdInstallmentModalOpen(true);
@@ -1094,6 +1237,20 @@ export default function ClientDetailPage() {
     if (enteredAmount <= 0) {
       alert("Installment amount must be greater than 0.");
       return;
+    }
+
+    // Split payment validation
+    if (prodInstMode === "Split") {
+      const c = parseFloat(prodInstSplitCash) || 0;
+      const u = parseFloat(prodInstSplitUpi) || 0;
+      const cd = parseFloat(prodInstSplitCard) || 0;
+      const totalSplit = c + u + cd;
+      if (Math.abs(totalSplit - enteredAmount) > 0.01) {
+        alert(
+          `Split breakdown total (₹${totalSplit}) does not match installment amount (₹${enteredAmount}).\nPlease check the split values.`
+        );
+        return;
+      }
     }
 
     // Check maximum allowed for this purchased product
@@ -1126,7 +1283,7 @@ export default function ClientDetailPage() {
 
     setSaving(true);
     try {
-      const instData = {
+      const instData: any = {
         purchasedProductId: targetPurchasedProductId,
         name: prodInstName.trim() || "Installment Payment",
         amount: enteredAmount,
@@ -1135,6 +1292,12 @@ export default function ClientDetailPage() {
         status: prodInstStatus,
         updatedAt: serverTimestamp(),
       };
+
+      if (prodInstMode === "Split") {
+        instData.splitCash = parseFloat(prodInstSplitCash) || 0;
+        instData.splitUpi = parseFloat(prodInstSplitUpi) || 0;
+        instData.splitCard = parseFloat(prodInstSplitCard) || 0;
+      }
 
       if (editingProdInstallmentId) {
         await updateDoc(
@@ -1285,7 +1448,7 @@ export default function ClientDetailPage() {
     setAttStep("scanning_face");
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: cameraFacingMode },
       });
       streamRef.current = mediaStream;
       setIsCameraActive(true);
@@ -1946,20 +2109,47 @@ export default function ClientDetailPage() {
                                 {plan.durationMonths} Months Duration
                               </span>
                             </div>
-                            <span className="text-xs text-zinc-500 font-medium">
-                              Started: {plan.startDate}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span className="text-xs text-zinc-500 font-medium">
+                                Start: <strong className="text-zinc-700 dark:text-zinc-300">{plan.startDate}</strong>
+                              </span>
+                              <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                              <span className="text-xs text-zinc-500 font-medium">
+                                End: <strong className="text-zinc-700 dark:text-zinc-300">{plan.endDate || computeEndDate(plan.startDate, plan.durationMonths)}</strong>
+                              </span>
+                              {(() => {
+                                const exp = getPlanExpiryInfo(plan.endDate || computeEndDate(plan.startDate, plan.durationMonths));
+                                return (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                      !exp.isExpired
+                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                        : "bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800"
+                                    }`}
+                                  >
+                                    {exp.badgeText} • {exp.daysText}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <span className="text-xs text-zinc-400 font-medium block">
-                              Total Price
-                            </span>
+                            {plan.basePrice && plan.basePrice > plan.totalAmount && (
+                              <span className="text-[11px] text-zinc-400 line-through block">
+                                ₹{plan.basePrice.toLocaleString("en-IN")}
+                              </span>
+                            )}
                             <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                               ₹{plan.totalAmount.toLocaleString("en-IN")}
                             </span>
+                            {plan.discount && plan.discount > 0 ? (
+                              <span className="text-[10px] font-bold text-emerald-600 block">
+                                ₹{plan.discount.toLocaleString("en-IN")} Discount
+                              </span>
+                            ) : null}
                           </div>
 
                           <div className="flex items-center gap-1">
@@ -2050,6 +2240,13 @@ export default function ClientDetailPage() {
                                       <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium dark:bg-zinc-800">
                                         {inst.mode}
                                       </span>
+                                      {inst.mode === "Split" && (
+                                        <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                                          {inst.splitCash ? `Cash: ₹${inst.splitCash} ` : ""}
+                                          {inst.splitUpi ? `UPI: ₹${inst.splitUpi} ` : ""}
+                                          {inst.splitCard ? `Card: ₹${inst.splitCard}` : ""}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="px-4 py-2.5">
                                       <span
@@ -2680,6 +2877,13 @@ export default function ClientDetailPage() {
                                       <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium dark:bg-zinc-800">
                                         {inst.mode}
                                       </span>
+                                      {inst.mode === "Split" && (
+                                        <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                                          {inst.splitCash ? `Cash: ₹${inst.splitCash} ` : ""}
+                                          {inst.splitUpi ? `UPI: ₹${inst.splitUpi} ` : ""}
+                                          {inst.splitCard ? `Card: ₹${inst.splitCard}` : ""}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="px-4 py-2.5">
                                       <span
@@ -2760,15 +2964,57 @@ export default function ClientDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Total Amount (₹)
+                    Base Plan Price (₹)
                   </label>
                   <input
                     type="number"
                     required
                     placeholder="e.g. 12000"
+                    value={planBasePrice}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPlanBasePrice(val);
+                      const bp = parseFloat(val) || 0;
+                      const disc = parseFloat(planDiscount) || 0;
+                      setPlanTotalAmount(Math.max(0, bp - disc).toString());
+                    }}
+                    className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Discount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 1000"
+                    value={planDiscount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPlanDiscount(val);
+                      const bp = parseFloat(planBasePrice) || 0;
+                      const disc = parseFloat(val) || 0;
+                      setPlanTotalAmount(Math.max(0, bp - disc).toString());
+                    }}
+                    className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Net Amount Payable (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="e.g. 11000"
                     value={planTotalAmount}
                     onChange={(e) => setPlanTotalAmount(e.target.value)}
-                    className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                    className="h-8.5 w-full rounded-lg border border-amber-400/50 bg-amber-50/50 px-3 text-xs font-bold text-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
                   />
                 </div>
 
@@ -2781,20 +3027,42 @@ export default function ClientDetailPage() {
                     required
                     min="1"
                     value={planDurationMonths}
-                    onChange={(e) => setPlanDurationMonths(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPlanDurationMonths(val);
+                      setPlanEndDate(computeEndDate(planStartDate, parseInt(val) || 1));
+                    }}
                     className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Start Date
-                </label>
-                <CustomDatePicker
-                  value={planStartDate}
-                  onChange={(val) => setPlanStartDate(val)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Start Date
+                  </label>
+                  <CustomDatePicker
+                    value={planStartDate}
+                    onChange={(val) => {
+                      setPlanStartDate(val);
+                      setPlanEndDate(computeEndDate(val, parseInt(planDurationMonths) || 1));
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                      End Date
+                    </label>
+                    <span className="text-[10px] text-zinc-400 font-medium">Editable</span>
+                  </div>
+                  <CustomDatePicker
+                    value={planEndDate}
+                    onChange={(val) => setPlanEndDate(val)}
+                  />
+                </div>
               </div>
 
               <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
@@ -2891,6 +3159,7 @@ export default function ClientDetailPage() {
                     <option value="UPI">UPI</option>
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
+                    <option value="Split">Split</option>
                   </select>
                 </div>
 
@@ -2908,6 +3177,70 @@ export default function ClientDetailPage() {
                   </select>
                 </div>
               </div>
+
+              {instMode === "Split" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <span className="block text-xs font-bold text-amber-900 dark:text-amber-300 mb-2">
+                    Split Payment Breakdown (Total: ₹{instAmount || 0})
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Cash (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={instSplitCash}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInstSplitCash(val);
+                          const total = (parseFloat(val) || 0) + (parseFloat(instSplitUpi) || 0) + (parseFloat(instSplitCard) || 0);
+                          setInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        UPI (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={instSplitUpi}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInstSplitUpi(val);
+                          const total = (parseFloat(instSplitCash) || 0) + (parseFloat(val) || 0) + (parseFloat(instSplitCard) || 0);
+                          setInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Card (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={instSplitCard}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInstSplitCard(val);
+                          const total = (parseFloat(instSplitCash) || 0) + (parseFloat(instSplitUpi) || 0) + (parseFloat(val) || 0);
+                          setInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
                 <button
@@ -3268,6 +3601,15 @@ export default function ClientDetailPage() {
                         muted
                         className="h-full w-full object-cover"
                       />
+                      <button
+                        type="button"
+                        onClick={toggleCameraFacingMode}
+                        className="cursor-pointer absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-xs hover:bg-black/80 transition-colors"
+                        title="Switch Camera (Front / Back)"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        <span>{cameraFacingMode === "user" ? "Back" : "Front"}</span>
+                      </button>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 animate-pulse mt-2 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/30">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3656,8 +3998,73 @@ export default function ClientDetailPage() {
                   <option value="UPI">UPI</option>
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
+                  <option value="Split">Split</option>
                 </select>
               </div>
+
+              {prodInstMode === "Split" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <span className="block text-xs font-bold text-amber-900 dark:text-amber-300 mb-2">
+                    Split Payment Breakdown (Total: ₹{prodInstAmount || 0})
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Cash (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={prodInstSplitCash}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProdInstSplitCash(val);
+                          const total = (parseFloat(val) || 0) + (parseFloat(prodInstSplitUpi) || 0) + (parseFloat(prodInstSplitCard) || 0);
+                          setProdInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        UPI (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={prodInstSplitUpi}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProdInstSplitUpi(val);
+                          const total = (parseFloat(prodInstSplitCash) || 0) + (parseFloat(val) || 0) + (parseFloat(prodInstSplitCard) || 0);
+                          setProdInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Card (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={prodInstSplitCard}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProdInstSplitCard(val);
+                          const total = (parseFloat(prodInstSplitCash) || 0) + (parseFloat(prodInstSplitUpi) || 0) + (parseFloat(val) || 0);
+                          setProdInstAmount(total.toString());
+                        }}
+                        className="h-8 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">

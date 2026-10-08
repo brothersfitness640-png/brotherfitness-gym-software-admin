@@ -9,17 +9,20 @@ import {
   CalendarCheck,
   Package,
   UserCheck,
+  ShieldCheck,
   BadgeIndianRupee,
   Settings,
   Layers,
   Building2,
+  QrCode,
   UserPlus,
   HelpCircle,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
-const navigationItems = [
+export const ALL_NAVIGATION_ITEMS = [
   {
     name: "Dashboard",
     href: "/",
@@ -29,6 +32,11 @@ const navigationItems = [
     name: "Outlets",
     href: "/outlets",
     icon: Building2,
+  },
+  {
+    name: "Outlets QR Code",
+    href: "/outlets-qr",
+    icon: QrCode,
   },
   {
     name: "Clients",
@@ -56,9 +64,14 @@ const navigationItems = [
     icon: Package,
   },
   {
+    name: "Employees",
+    href: "/employees",
+    icon: UserCheck,
+  },
+  {
     name: "Staff",
     href: "/staff",
-    icon: UserCheck,
+    icon: UserCog,
   },
   {
     name: "Payroll",
@@ -79,7 +92,10 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { logout, staffUser, role, hasAccess } = useAuth();
+
+  // Filter items: only render items user has access to
+  const visibleItems = ALL_NAVIGATION_ITEMS.filter((item) => hasAccess(item.href));
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden lg:flex w-60 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
@@ -101,11 +117,11 @@ export default function Sidebar() {
               Brother's Fitness
             </span>
             <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-400/30">
-              Pro
+              {role === "staff" ? "Staff" : "Pro"}
             </span>
           </div>
-          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-            Gym Admin
+          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate">
+            {role === "staff" && staffUser ? staffUser.name : "Gym Admin"}
           </span>
         </div>
       </div>
@@ -116,7 +132,7 @@ export default function Sidebar() {
           Navigation
         </div>
 
-        {navigationItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href ||
@@ -159,7 +175,7 @@ export default function Sidebar() {
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
             <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-              System Active
+              {role === "staff" ? "Staff Mode" : "Admin Active"}
             </span>
           </div>
           <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">

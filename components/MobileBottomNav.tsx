@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   Grid,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 const bottomNavItems = [
   {
@@ -40,10 +41,16 @@ const bottomNavItems = [
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+  const { hasAccess } = useAuth();
+
+  // Show only accessible items, but always allow /menu
+  const visibleItems = bottomNavItems.filter(
+    (item) => item.href === "/menu" || hasAccess(item.href)
+  );
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-zinc-200 bg-white/95 px-2 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 lg:hidden shadow-lg">
-      {bottomNavItems.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         const isActive =
           pathname === item.href ||

@@ -269,15 +269,20 @@ export default function ClientsPage() {
   };
 
   // Camera Management
-  const startCamera = async () => {
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+
+  const startCamera = async (mode: "user" | "environment" = cameraFacingMode) => {
     setCameraError("");
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraError("Camera access is not supported in this browser");
         return;
       }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: mode },
         audio: false,
       });
       streamRef.current = mediaStream;
@@ -287,6 +292,12 @@ export default function ClientsPage() {
       setCameraError("Camera permission denied or camera not available");
       setIsCameraActive(false);
     }
+  };
+
+  const toggleCameraFacingMode = async () => {
+    const newMode = cameraFacingMode === "user" ? "environment" : "user";
+    setCameraFacingMode(newMode);
+    await startCamera(newMode);
   };
 
   const stopCamera = () => {
@@ -855,6 +866,14 @@ export default function ClientsPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={toggleCameraFacingMode}
+                        className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 text-amber-500" />
+                        <span>{cameraFacingMode === "user" ? "Back Camera" : "Front Camera"}</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={stopCamera}
                         className="cursor-pointer rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-100"
                       >
@@ -867,7 +886,7 @@ export default function ClientsPage() {
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={startCamera}
+                      onClick={() => startCamera()}
                       className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-semibold text-black shadow-xs hover:bg-amber-500 transition-colors"
                     >
                       <Camera className="h-3.5 w-3.5" />

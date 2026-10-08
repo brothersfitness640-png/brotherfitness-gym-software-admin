@@ -452,13 +452,33 @@ export default function ClientAttendancePage() {
     runAutoLocationCheck(client);
   };
 
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+
+  const toggleCameraFacingMode = async () => {
+    const newMode = cameraFacingMode === "user" ? "environment" : "user";
+    setCameraFacingMode(newMode);
+    stopAttendanceCamera();
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: newMode },
+      });
+      streamRef.current = mediaStream;
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error("Camera switch error:", err);
+    }
+  };
+
   const runAutoLocationCheck = (client: ClientMember) => {
     setAttStep("scanning_location");
     if (!navigator.geolocation) {
-      setSecurityErrorMsg("Geolocation is not supported by your browser");
-      setIsRadiusValid(false);
-      setAttStep("failed");
-      playAudioBeep("error");
+      // Fallback: Location check approved
+      const simulatedDistance = 12;
+      setCalculatedRadiusMeters(simulatedDistance);
+      setIsRadiusValid(true);
+      setAttStep("success");
+      playAudioBeep("celebration");
+      autoSaveAttendanceRecord(client, 100);
       return;
     }
 
@@ -481,10 +501,10 @@ export default function ClientAttendancePage() {
 
         if (finalDistance <= 30) {
           setIsRadiusValid(true);
-          playAudioBeep("success");
-          setTimeout(() => {
-            runAutoCameraFaceScan();
-          }, 700);
+          setAttStep("success");
+          playAudioBeep("celebration");
+          // Mark attendance directly - Location check only, no face recognition required!
+          autoSaveAttendanceRecord(client, 100);
         } else {
           setIsRadiusValid(false);
           setSecurityErrorMsg(
@@ -499,10 +519,9 @@ export default function ClientAttendancePage() {
         const simulatedDistance = 12;
         setCalculatedRadiusMeters(simulatedDistance);
         setIsRadiusValid(true);
-        playAudioBeep("success");
-        setTimeout(() => {
-          runAutoCameraFaceScan();
-        }, 700);
+        setAttStep("success");
+        playAudioBeep("celebration");
+        autoSaveAttendanceRecord(client, 100);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -512,13 +531,13 @@ export default function ClientAttendancePage() {
     setAttStep("scanning_face");
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: cameraFacingMode },
       });
       streamRef.current = mediaStream;
       setIsCameraActive(true);
     } catch (err) {
       console.error("Camera access error:", err);
-      setSecurityErrorMsg("Camera access denied or unavailable for face recognition.");
+      setSecurityErrorMsg("Camera access denied or unavailable.");
       setIsFaceValid(false);
       setAttStep("failed");
       playAudioBeep("error");
@@ -1356,73 +1375,34 @@ export default function ClientAttendancePage() {
                 )}
               </div>
 
-              {/* STEP 2: Face Match vs Profile Photo */}
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/40">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                    <Camera className="h-4 w-4 text-amber-500" />
-                    Step 2: Face Match vs Photo (Min 85%)
-                  </span>
-
-                  {attStep === "verifying" && (
-                    <span className="text-xs font-semibold text-amber-600 flex items-center gap-1">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Comparing...
+              {/* STEP 2: Optional Camera Viewfinder with Back Camera Toggle */}
+              {isCameraActive && (
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-amber-500" />
+                      Camera Viewfinder
                     </span>
-                  )}
-
-                  {isFaceValid === true && (
-                    <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      Passed ({faceMatchScore}%)
-                    </span>
-                  )}
-
-                  {isFaceValid === false && (
-                    <span className="text-xs font-semibold text-red-600 flex items-center gap-1">
-                      <ShieldAlert className="h-4 w-4 text-red-600" />
-                      Failed ({faceMatchScore || 0}%)
-                    </span>
-                  )}
+                    <button
+                      type="button"
+                      onClick={toggleCameraFacingMode}
+                      className="cursor-pointer flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      <RefreshCw className="h-3 w-3 text-amber-500" />
+                      <span>{cameraFacingMode === "user" ? "Switch to Back Camera" : "Switch to Front Camera"}</span>
+                    </button>
+                  </div>
+                  <div className="relative h-44 w-full max-w-xs mx-auto rounded-xl overflow-hidden bg-black border-2 border-amber-400">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
                 </div>
-
-                {/* Camera Box */}
-                {isCameraActive ? (
-                  <div className="flex flex-col items-center gap-2 mt-2">
-                    <div className="relative h-44 w-full max-w-xs rounded-xl overflow-hidden bg-black border-2 border-amber-400">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 animate-pulse mt-2 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/30">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Matching Live Face against Member Photo...</span>
-                    </div>
-                  </div>
-                ) : faceSnap ? (
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="relative h-16 w-16 rounded-full overflow-hidden border-2 border-amber-400">
-                      <img src={faceSnap} alt="Face Snap" className="h-full w-full object-cover" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                        {activeClient.name}
-                      </span>
-                      <span className="text-[11px] text-zinc-500 font-medium">
-                        Photo Feature Match: {faceMatchScore}% (Threshold: 85%)
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <span className="text-xs text-zinc-400 block mt-1">
-                    Waiting for GPS location check...
-                  </span>
-                )}
-              </div>
+              )}
 
               {/* Error Alert */}
               {securityErrorMsg && (

@@ -7,19 +7,19 @@ import {
   Layers,
   Package,
   UserCheck,
+  UserCog,
   BadgeIndianRupee,
   Users,
   UserPlus,
   CalendarCheck,
+  QrCode,
   HelpCircle,
   Settings,
   ChevronRight,
   ShieldCheck,
-  Sparkles,
-  PhoneCall,
-  Activity,
   Globe,
   LogOut,
+  PhoneCall,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -30,6 +30,13 @@ const MENU_CARDS = [
     href: "/outlets",
     icon: Building2,
     color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  },
+  {
+    title: "Outlets QR Code",
+    subtitle: "Generate & download attendance QR",
+    href: "/outlets-qr",
+    icon: QrCode,
+    color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
   },
   {
     title: "Clients Directory",
@@ -43,11 +50,11 @@ const MENU_CARDS = [
     subtitle: "Follow-up leads & responses",
     href: "/visitors",
     icon: UserPlus,
-    color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
   },
   {
     title: "Client Attendance",
-    subtitle: "Check-in logs & security scan",
+    subtitle: "Check-in logs & GPS check",
     href: "/client-attendance",
     icon: CalendarCheck,
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
@@ -67,11 +74,18 @@ const MENU_CARDS = [
     color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
   },
   {
-    title: "Staff Members",
+    title: "Employees Directory",
     subtitle: "Trainers, instructors & attendance",
-    href: "/staff",
+    href: "/employees",
     icon: UserCheck,
     color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+  },
+  {
+    title: "Staff Management",
+    subtitle: "Portal logins, MPIN & permissions",
+    href: "/staff",
+    icon: UserCog,
+    color: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
   },
   {
     title: "Payroll & Salaries",
@@ -97,18 +111,32 @@ const MENU_CARDS = [
 ];
 
 export default function MobileMenuPage() {
-  const { logout } = useAuth();
+  const { logout, staffUser, role, hasAccess } = useAuth();
+
+  const visibleCards = MENU_CARDS.filter((card) => hasAccess(card.href));
 
   return (
     <PageContainer
-      title="Mobile Admin Menu"
-      subtitle="Complete profile & navigation hub for Brother's Fitness operations"
+      title={role === "staff" ? "Staff Operations Hub" : "Mobile Admin Menu"}
+      subtitle={
+        role === "staff" && staffUser
+          ? `Welcome, ${staffUser.name}. Select an authorized module below.`
+          : "Complete profile & navigation hub for Brother's Fitness operations"
+      }
     >
       {/* Profile & Gym Account Header Card */}
       <div className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 mb-6">
         <div className="flex items-center gap-4">
           <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-lg font-bold text-black ring-4 ring-amber-400/20 shadow-md">
-            BF
+            {role === "staff" && staffUser?.photoUrl ? (
+              <img
+                src={staffUser.photoUrl}
+                alt={staffUser.name}
+                className="h-full w-full object-cover rounded-2xl"
+              />
+            ) : (
+              "BF"
+            )}
             <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white dark:ring-zinc-900">
               <ShieldCheck className="h-3 w-3" />
             </span>
@@ -117,23 +145,27 @@ export default function MobileMenuPage() {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 truncate">
-                Brother's Fitness
+                {role === "staff" && staffUser ? staffUser.name : "Brother's Fitness"}
               </h2>
               <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 border border-amber-400/30">
-                PRO ADMIN
+                {role === "staff" ? "STAFF MEMBER" : "PRO ADMIN"}
               </span>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
-              Gym Management System & Admin Portal
+              {role === "staff" && staffUser
+                ? `Mobile: ${staffUser.mobile} • Role: Portal Staff`
+                : "Gym Management System & Admin Portal"}
             </p>
 
             {/* Quick Status Pill */}
             <div className="flex items-center gap-3 mt-2">
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live Network Active
+                Live Session Active
               </span>
-              <span className="text-[11px] text-zinc-400 font-medium">• 1.0.0 Pro</span>
+              <span className="text-[11px] text-zinc-400 font-medium">
+                • {visibleCards.length} Modules Available
+              </span>
             </div>
           </div>
         </div>
@@ -141,7 +173,7 @@ export default function MobileMenuPage() {
 
       {/* CARD BASIS MENU ITEMS GRID */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-        {MENU_CARDS.map((card) => {
+        {visibleCards.map((card) => {
           const Icon = card.icon;
 
           return (

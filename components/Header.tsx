@@ -4,7 +4,7 @@ import { Search, Bell, Eye, Command, LogOut } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function Header() {
-  const { logout } = useAuth();
+  const { logout, staffUser, role } = useAuth();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white/95 px-5 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
@@ -34,15 +34,19 @@ export default function Header() {
 
         {/* User Profile Badge */}
         <div className="flex items-center gap-2.5 pl-2.5 border-l border-zinc-200 dark:border-zinc-800">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-xs font-semibold text-black ring-1 ring-amber-400/40">
-            BF
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-xs font-semibold text-black ring-1 ring-amber-400/40 overflow-hidden">
+            {role === "staff" && staffUser?.photoUrl ? (
+              <img src={staffUser.photoUrl} alt={staffUser.name} className="h-full w-full object-cover" />
+            ) : (
+              "BF"
+            )}
           </div>
           <div className="hidden md:flex flex-col text-left">
-            <span className="text-xs font-semibold leading-tight text-zinc-900 dark:text-zinc-100">
-              Brother's Fitness
+            <span className="text-xs font-semibold leading-tight text-zinc-900 dark:text-zinc-100 truncate max-w-[120px]">
+              {role === "staff" && staffUser ? staffUser.name : "Brother's Fitness"}
             </span>
             <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              Admin Portal
+              {role === "staff" ? "Staff Portal" : "Admin Portal"}
             </span>
           </div>
         </div>
