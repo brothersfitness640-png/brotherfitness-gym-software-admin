@@ -113,10 +113,27 @@ function getClientPlanStatus(client: ClientMember, assignedPlans: AssignedPlanDo
         planName: client.planName || "Membership",
       };
     }
+    // If client has a planName assigned (e.g. from registration or legacy)
+    if (client.planName && client.planName.trim() !== "" && client.planName !== "No Plan") {
+      if (client.planStartDate) {
+        const computedEnd = computeEndDate(client.planStartDate, 1);
+        const isExpired = computedEnd < todayStr;
+        return {
+          status: isExpired ? ("Expired" as const) : ("Ongoing" as const),
+          endDate: computedEnd,
+          planName: client.planName,
+        };
+      }
+      return {
+        status: "Ongoing" as const,
+        endDate: null,
+        planName: client.planName,
+      };
+    }
     return {
       status: "No Plan" as const,
       endDate: null,
-      planName: client.planName || "No Plan",
+      planName: "No Plan",
     };
   }
 
@@ -178,6 +195,22 @@ export default function ClientsPage() {
   const [planDiscount, setPlanDiscount] = useState("0");
   const [receivedAmount, setReceivedAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [splitCash, setSplitCash] = useState("");
+  const [splitUpi, setSplitUpi] = useState("");
+  const [splitCard, setSplitCard] = useState("");
+
+  const handlePaymentMethodChange = (mode: string) => {
+    setPaymentMethod(mode);
+    if (mode === "Split") {
+      const rec = parseFloat(receivedAmount) || 0;
+      if (!splitCash && !splitUpi && !splitCard && rec > 0) {
+        setSplitCash(rec.toString());
+        setSplitUpi("0");
+        setSplitCard("0");
+      }
+    }
+  };
+
   const [planStartDate, setPlanStartDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -435,6 +468,9 @@ export default function ClientsPage() {
       setPlanEndDate(computeEndDate(today, 1));
     }
     setPaymentMethod("Cash");
+    setSplitCash("");
+    setSplitUpi("");
+    setSplitCard("");
 
     setLatitude(null);
     setLongitude(null);
@@ -582,6 +618,21 @@ export default function ClientsPage() {
       return;
     }
 
+    // 2. SPLIT PAYMENT VALIDATION
+    const recAmt = parseFloat(receivedAmount) || 0;
+    if (!editingId && paymentMethod === "Split" && recAmt > 0) {
+      const c = parseFloat(splitCash) || 0;
+      const u = parseFloat(splitUpi) || 0;
+      const cd = parseFloat(splitCard) || 0;
+      const totalSplit = c + u + cd;
+      if (Math.abs(totalSplit - recAmt) > 0.01) {
+        alert(
+          `Split payment breakdown total (₹${totalSplit}) does not match Received Amount (₹${recAmt}).\nPlease adjust the Cash, UPI, or Card split amounts.`
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       let finalPhotoUrl = capturedPhoto || "";
@@ -658,8 +709,11 @@ export default function ClientsPage() {
         );
 
         // Save Initial Payment in subcollection `clients/{newClientId}/installments` if receivedAmount > 0
-        const recAmt = parseFloat(receivedAmount) || 0;
         if (recAmt > 0) {
+          const cashVal = parseFloat(splitCash) || 0;
+          const upiVal = parseFloat(splitUpi) || 0;
+          const cardVal = parseFloat(splitCard) || 0;
+
           await addDoc(
             collection(db, "clients", newClientId, "installments"),
             {
@@ -667,8 +721,14 @@ export default function ClientsPage() {
               amount: recAmt,
               date: planStartDate,
               mode: paymentMethod || "Cash",
+              splitCash: paymentMethod === "Split" ? cashVal : 0,
+              splitUpi: paymentMethod === "Split" ? upiVal : 0,
+              splitCard: paymentMethod === "Split" ? cardVal : 0,
               status: "Paid",
-              note: "Initial registration payment",
+              note:
+                paymentMethod === "Split"
+                  ? `Initial registration payment (Split: Cash ₹${cashVal}, UPI ₹${upiVal}, Card ₹${cardVal})`
+                  : `Initial registration payment via ${paymentMethod}`,
               createdAt: serverTimestamp(),
             }
           );
@@ -879,124 +939,53 @@ export default function ClientsPage() {
       {/* Main Table Container */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
         {/* Search & Filter Toolbar Header */}
-        <div className="flex flex-col gap-3.5 border-b border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
-          {/* Plan Status Filter Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => setPlanStatusFilter("all")}
-              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                planStatusFilter === "all"
-                  ? "bg-amber-400 text-black shadow-xs font-bold"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              }`}
-            >
-              <span>All Members</span>
-              <span
-                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
-                  planStatusFilter === "all"
-                    ? "bg-black/15 text-black"
-                    : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
-                }`}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-200 px-5 py-3.5 dark:border-zinc-800">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search member by name, phone, plan, outlet..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-9 pr-8 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                title="Clear search"
               >
-                {clients.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setPlanStatusFilter("ongoing")}
-              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                planStatusFilter === "ongoing"
-                  ? "bg-emerald-500 text-white shadow-xs font-bold"
-                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-              }`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Ongoing Plans</span>
-              <span
-                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
-                  planStatusFilter === "ongoing"
-                    ? "bg-black/20 text-white"
-                    : "bg-emerald-200/70 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200"
-                }`}
-              >
-                {ongoingCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setPlanStatusFilter("expired")}
-              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                planStatusFilter === "expired"
-                  ? "bg-red-500 text-white shadow-xs font-bold"
-                  : "bg-red-50 text-red-800 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
-              }`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-              <span>Expired Plans</span>
-              <span
-                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
-                  planStatusFilter === "expired"
-                    ? "bg-black/20 text-white"
-                    : "bg-red-200/70 text-red-900 dark:bg-red-900/60 dark:text-red-200"
-                }`}
-              >
-                {expiredCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setPlanStatusFilter("no_plan")}
-              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                planStatusFilter === "no_plan"
-                  ? "bg-zinc-700 text-white shadow-xs font-bold dark:bg-zinc-600"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-              }`}
-            >
-              <span>No Plan</span>
-              <span
-                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
-                  planStatusFilter === "no_plan"
-                    ? "bg-black/20 text-white"
-                    : "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400"
-                }`}
-              >
-                {noPlanCount}
-              </span>
-            </button>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Search Input & Secondary Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
-            <div className="relative min-w-[220px] flex-1 sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search member, phone, plan..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-8.5 pr-8 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                  title="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+          {/* Unified Filter Dropdowns Group */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Status Filter */}
+            <div className="relative">
+              <select
+                value={planStatusFilter}
+                onChange={(e) => setPlanStatusFilter(e.target.value as any)}
+                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-800 outline-none hover:bg-zinc-100 focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 transition-colors"
+              >
+                <option value="all">All Status ({clients.length})</option>
+                <option value="ongoing">🟢 Ongoing ({ongoingCount})</option>
+                <option value="expired">🔴 Expired ({expiredCount})</option>
+                <option value="no_plan">⚪ No Plan ({noPlanCount})</option>
+              </select>
             </div>
 
-            {/* Plan Type Dropdown Filter */}
+            {/* Plan Type Filter */}
             <div className="relative">
               <select
                 value={planTypeFilter}
                 onChange={(e) => setPlanTypeFilter(e.target.value)}
-                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-medium text-zinc-700 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-amber-400"
+                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-800 outline-none hover:bg-zinc-100 focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 transition-colors max-w-[170px] truncate"
               >
-                <option value="all">All Plan Types</option>
+                <option value="all">All Plans ({plans.length})</option>
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -1005,12 +994,12 @@ export default function ClientsPage() {
               </select>
             </div>
 
-            {/* Gym Outlet Dropdown Filter */}
+            {/* Outlet Filter */}
             <div className="relative">
               <select
                 value={outletFilter}
                 onChange={(e) => setOutletFilter(e.target.value)}
-                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-medium text-zinc-700 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-amber-400"
+                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-800 outline-none hover:bg-zinc-100 focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 transition-colors max-w-[160px] truncate"
               >
                 <option value="all">All Outlets</option>
                 {outlets.map((o) => (
@@ -1034,10 +1023,10 @@ export default function ClientsPage() {
                   setPlanTypeFilter("all");
                   setOutletFilter("all");
                 }}
-                className="cursor-pointer flex h-9 items-center gap-1 rounded-lg border border-dashed border-red-300 bg-red-50/50 px-2.5 text-xs font-semibold text-red-600 hover:bg-red-100/60 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 transition-colors"
+                className="cursor-pointer flex h-9 shrink-0 items-center gap-1 rounded-lg border border-dashed border-red-300 bg-red-50/70 px-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400 transition-colors"
                 title="Reset all filters"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
                 <span>Reset</span>
               </button>
             )}
@@ -1131,10 +1120,12 @@ export default function ClientsPage() {
                       const planInfo = getClientPlanStatus(client, clientPlansMap[client.id] || []);
                       return (
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                            <Layers className="h-3 w-3" />
-                            {planInfo.planName}
-                          </span>
+                          {planInfo.planName !== "No Plan" && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                              <Layers className="h-3 w-3" />
+                              {planInfo.planName}
+                            </span>
+                          )}
                           {planInfo.status === "Ongoing" && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1147,7 +1138,7 @@ export default function ClientsPage() {
                               Expired
                             </span>
                           )}
-                          {planInfo.status === "No Plan" && (
+                          {planInfo.status === "No Plan" && planInfo.planName === "No Plan" && (
                             <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                               No Plan
                             </span>
@@ -1278,10 +1269,12 @@ export default function ClientsPage() {
                           return (
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                                  <Layers className="h-3 w-3" />
-                                  {planInfo.planName}
-                                </span>
+                                {planInfo.planName !== "No Plan" && (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                                    <Layers className="h-3 w-3" />
+                                    {planInfo.planName}
+                                  </span>
+                                )}
                                 {planInfo.status === "Ongoing" && (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1294,7 +1287,7 @@ export default function ClientsPage() {
                                     Expired
                                   </span>
                                 )}
-                                {planInfo.status === "No Plan" && (
+                                {planInfo.status === "No Plan" && planInfo.planName === "No Plan" && (
                                   <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                                     No Plan
                                   </span>
@@ -1398,28 +1391,37 @@ export default function ClientsPage() {
 
       {/* Add / Edit Client Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 my-8 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7.5 w-7.5 items-center justify-center rounded-lg bg-amber-400 text-black">
-                  <Users className="h-4 w-4" />
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-3 sm:p-6 flex items-start justify-center">
+          <div className="w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 my-4 sm:my-8 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 relative">
+            {/* Modal Header (Sticky) */}
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-zinc-200 bg-white/95 px-6 py-4 backdrop-blur-xs dark:border-zinc-800 dark:bg-zinc-900/95">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-black">
+                  <Users className="h-4.5 w-4.5" />
                 </div>
-                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  {editingId ? "Edit Client Member" : "Add New Client Member"}
-                </h2>
+                <div>
+                  <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                    {editingId ? "Edit Client Member" : "Add New Client Member"}
+                  </h2>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {editingId
+                      ? "Update member profile and branch assignment"
+                      : "Register member with photo, plan assignment & initial payment"}
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={handleCloseModal}
-                className="cursor-pointer flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveClient} className="mt-4 flex flex-col gap-4">
+            <form onSubmit={handleSaveClient} className="flex flex-col">
+              <div className="p-6 flex flex-col gap-4">
               {/* Photo Capture & Preview Section */}
               <div className="flex flex-col items-center justify-center border border-dashed border-zinc-300 rounded-xl p-4 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-800/30">
                 <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
@@ -1703,17 +1705,98 @@ export default function ClientsPage() {
                       </label>
                       <select
                         value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        onChange={(e) => handlePaymentMethodChange(e.target.value)}
                         className="cursor-pointer h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                       >
                         <option value="Cash">Cash</option>
                         <option value="UPI">UPI</option>
                         <option value="Card">Card</option>
+                        <option value="Split">Split Payment (Cash + UPI + Card)</option>
                         <option value="Net Banking">Net Banking</option>
                         <option value="Cheque">Cheque</option>
                       </select>
                     </div>
                   </div>
+
+                  {/* Split Payment Breakdown Inputs */}
+                  {paymentMethod === "Split" && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-3.5 shadow-xs dark:border-amber-900/40 dark:bg-amber-950/30 space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-amber-200/60 pb-2 dark:border-amber-900/40">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-300">
+                          <CreditCard className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>Split Payment Breakdown</span>
+                        </div>
+                        {(() => {
+                          const total =
+                            (parseFloat(splitCash) || 0) +
+                            (parseFloat(splitUpi) || 0) +
+                            (parseFloat(splitCard) || 0);
+                          const target = parseFloat(receivedAmount) || 0;
+                          const diff = Math.round((total - target) * 100) / 100;
+                          return (
+                            <span
+                              className={`text-[11px] font-bold ${
+                                Math.abs(diff) < 0.01
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-red-500"
+                              }`}
+                            >
+                              Split Total: ₹{total} / ₹{target}{" "}
+                              {diff !== 0 && (
+                                <span className="text-[10px] font-medium">
+                                  ({diff > 0 ? `+₹${diff} excess` : `-₹${Math.abs(diff)} remaining`})
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                            Cash (₹)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={splitCash}
+                            onChange={(e) => setSplitCash(e.target.value)}
+                            className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                            UPI (₹)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={splitUpi}
+                            onChange={(e) => setSplitUpi(e.target.value)}
+                            className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                            Card (₹)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={splitCard}
+                            onChange={(e) => setSplitCard(e.target.value)}
+                            className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Start Date, Duration (Months), End Date */}
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -1808,19 +1891,21 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              {/* Modal Actions */}
-              <div className="mt-2 flex items-center justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              </div>
+
+              {/* Modal Actions (Sticky Footer) */}
+              <div className="sticky bottom-0 z-20 flex items-center justify-end gap-2.5 border-t border-zinc-200 bg-zinc-50/95 px-6 py-3.5 backdrop-blur-xs dark:border-zinc-800 dark:bg-zinc-900/95">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="cursor-pointer rounded-lg border border-zinc-200 px-3.5 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+                  className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 disabled:opacity-50 transition-colors"
+                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-5 py-2 text-xs font-bold text-black shadow-md hover:bg-amber-500 disabled:opacity-50 transition-colors"
                 >
                   {saving ? (
                     <>
