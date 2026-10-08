@@ -8,13 +8,14 @@ import Header from "@/components/Header";
 import MobileBottomNav from "@/components/MobileBottomNav";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, staffUser, role } = useAuth();
   const pathname = usePathname();
 
   const isLoginPage = pathname === "/login";
+  const isAuthenticated = !!user || !!staffUser || !!role;
 
   // Hide application navigation shell on login page or when not authenticated
-  if (!user || isLoginPage) {
+  if (!isAuthenticated || isLoginPage) {
     return <main className="min-h-screen w-full">{children}</main>;
   }
 

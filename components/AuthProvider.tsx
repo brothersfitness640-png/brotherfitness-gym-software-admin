@@ -131,7 +131,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isAuthenticated && !isLoginPage) {
         router.replace("/login");
       } else if (isAuthenticated && isLoginPage) {
-        router.replace("/");
+        if (user) {
+          router.replace("/");
+        } else if (staffUser) {
+          const allowed = Object.entries(staffUser.permissions)
+            .filter(([_, p]) => p === "view" || p === "edit")
+            .map(([href]) => href);
+          if (allowed.includes("/") || allowed.includes("/dashboard")) {
+            router.replace("/");
+          } else if (allowed.length > 0) {
+            router.replace(allowed[0]);
+          } else {
+            router.replace("/menu");
+          }
+        }
       }
     }
   }, [user, staffUser, loading, pathname, router]);
