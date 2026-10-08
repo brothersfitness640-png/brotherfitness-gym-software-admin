@@ -24,7 +24,9 @@ import {
   Printer,
   Sparkles,
   ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface GymOutlet {
   id: string;
@@ -36,6 +38,9 @@ interface GymOutlet {
 }
 
 export default function OutletsQrCodePage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/outlets-qr");
+
   const [outlets, setOutlets] = useState<GymOutlet[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,6 +60,7 @@ export default function OutletsQrCodePage() {
 
   // Generate QR Code with Brothers Fitness branding on Canvas & upload to ImageKit
   const handleGenerateQr = async (outlet: GymOutlet) => {
+    if (!editable) return;
     setGeneratingId(outlet.id);
     try {
       // 1. Data payload embedded in the QR
@@ -211,6 +217,13 @@ export default function OutletsQrCodePage() {
       title="Outlets Attendance QR Codes"
       subtitle="Generate, preview, and download official attendance station QR codes saved on ImageKit CDN"
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Outlets QR. Generating new QR codes is restricted.</span>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -351,8 +364,8 @@ export default function OutletsQrCodePage() {
                         <ExternalLink className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                  ) : (
-                    /* ONLY DISPLAY GENERATE IF NO QR CODE */
+                  ) : editable ? (
+                    /* ONLY DISPLAY GENERATE IF NO QR CODE AND EDITABLE */
                     <button
                       onClick={() => handleGenerateQr(outlet)}
                       disabled={isGenerating}
@@ -370,6 +383,10 @@ export default function OutletsQrCodePage() {
                         </>
                       )}
                     </button>
+                  ) : (
+                    <div className="text-center py-2 text-xs text-zinc-400 italic">
+                      Generation restricted (View-only mode)
+                    </div>
                   )}
                 </div>
               </div>

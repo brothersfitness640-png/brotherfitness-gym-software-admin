@@ -20,7 +20,9 @@ import {
   FileText,
   Sliders,
   ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface SettingsData {
   // General Business Details
@@ -41,6 +43,9 @@ interface SettingsData {
 }
 
 export default function SettingsPage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/settings");
+
   const [activeTab, setActiveTab] = useState<"general" | "gst">("general");
 
   // Form State
@@ -88,6 +93,7 @@ export default function SettingsPage() {
 
   // Handle Logo Upload to ImageKit via API
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editable) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -121,6 +127,7 @@ export default function SettingsPage() {
   // Save Settings Handler
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
     setSaving(true);
     setSuccessMsg("");
 
@@ -167,6 +174,14 @@ export default function SettingsPage() {
       title="Business & System Settings"
       subtitle="Configure Brother's Fitness business profile, logo, GST tax parameters, and preferences"
     >
+      {/* View-Only Mode Banner */}
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for this page. Updating system settings, branding, or tax configuration is restricted.</span>
+        </div>
+      )}
+
       {/* Settings Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2 overflow-x-auto">
         <button
@@ -239,11 +254,13 @@ export default function SettingsPage() {
                   Upload your official logo to display on invoices, receipts, and client portals. Saved to ImageKit CDN.
                 </p>
 
-                <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 self-center sm:self-start mt-1">
-                  <Upload className="h-3.5 w-3.5" />
-                  <span>{logoUrl ? "Change Logo" : "Upload Logo"}</span>
-                  <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-                </label>
+                {editable && (
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 self-center sm:self-start mt-1">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{logoUrl ? "Change Logo" : "Upload Logo"}</span>
+                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                  </label>
+                )}
               </div>
             </div>
 
@@ -434,20 +451,22 @@ export default function SettingsPage() {
         )}
 
         {/* Submit Action Bar */}
-        <div className="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <button
-            type="submit"
-            disabled={saving}
-            className="cursor-pointer flex h-10 items-center gap-2 rounded-xl bg-amber-400 px-6 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            <span>Save All Settings</span>
-          </button>
-        </div>
+        {editable && (
+          <div className="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <button
+              type="submit"
+              disabled={saving}
+              className="cursor-pointer flex h-10 items-center gap-2 rounded-xl bg-amber-400 px-6 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span>Save All Settings</span>
+            </button>
+          </div>
+        )}
       </form>
     </PageContainer>
   );

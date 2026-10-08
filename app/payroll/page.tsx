@@ -42,7 +42,9 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface HolidayRecord {
   id: string;
@@ -105,6 +107,9 @@ interface StaffPayrollRecord {
 }
 
 export default function PayrollPage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/payroll");
+
   const [holidays, setHolidays] = useState<HolidayRecord[]>([]);
   const [outlets, setOutlets] = useState<OutletItem[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -375,6 +380,7 @@ export default function PayrollPage() {
 
   // Single Staff Save / Update Payslip Handler (Keyed by YYYY-MM so updating tomorrow updates the record cleanly!)
   const handleSaveOrUpdatePayslip = async (calc: ReturnType<typeof computeStaffPayrollForMonth>) => {
+    if (!editable) return;
     setSaving(true);
     try {
       const payslipData = {
@@ -411,7 +417,7 @@ export default function PayrollPage() {
 
   // Batch Action: Generate & Save Payslips for All Staff in Filter
   const handleBatchGenerateAllPayslips = async () => {
-    if (computedStaffPayrolls.length === 0) return;
+    if (!editable || computedStaffPayrolls.length === 0) return;
     setSaving(true);
     try {
       for (const calc of computedStaffPayrolls) {
@@ -449,6 +455,7 @@ export default function PayrollPage() {
 
   // Holiday Modal Handlers
   const handleOpenAddHolidayModal = (h?: HolidayRecord) => {
+    if (!editable) return;
     if (h) {
       setEditingHolidayId(h.id);
       setHolidayName(h.name);
@@ -463,6 +470,7 @@ export default function PayrollPage() {
 
   const handleSaveHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
     if (!holidayName.trim() || !holidayDate) return;
     setSaving(true);
     try {
@@ -493,6 +501,7 @@ export default function PayrollPage() {
   };
 
   const handleDeleteHolidayClick = (h: HolidayRecord) => {
+    if (!editable) return;
     setDeleteTarget({
       id: h.id,
       type: "holiday",
@@ -501,7 +510,7 @@ export default function PayrollPage() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!editable || !deleteTarget) return;
     setDeleting(true);
     try {
       if (deleteTarget.type === "holiday") {
@@ -528,9 +537,16 @@ export default function PayrollPage() {
     <PageContainer
       title="Staff Payroll & Salary Engine"
       subtitle="Calculate net salaries, process branch payouts, generate payslips, and manage official holidays"
-      actionText="+ Add Official Holiday"
-      onActionClick={() => handleOpenAddHolidayModal()}
+      actionText={editable ? "+ Add Official Holiday" : undefined}
+      onActionClick={editable ? () => handleOpenAddHolidayModal() : undefined}
     >
+      {/* View-Only Mode Banner */}
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for this page. Generating payslips, editing records, or adding/deleting holidays is restricted.</span>
+        </div>
+      )}
       {/* Top Analytics Summary Cards Header */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-xs dark:border-emerald-950/50 dark:bg-emerald-950/20">
@@ -644,7 +660,7 @@ export default function PayrollPage() {
                 />
               </div>
 
-              {activeTab === "payroll" && (
+              {editable && activeTab === "payroll" && (
                 <button
                   onClick={handleBatchGenerateAllPayslips}
                   disabled={saving || computedStaffPayrolls.length === 0}
@@ -768,14 +784,16 @@ export default function PayrollPage() {
                       </div>
 
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                        <button
-                          onClick={() => handleSaveOrUpdatePayslip(calc)}
-                          disabled={saving}
-                          className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-500 shadow-xs"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                          <span>{calc.isSaved ? "Update" : "Save"} Payslip</span>
-                        </button>
+                        {editable && (
+                          <button
+                            onClick={() => handleSaveOrUpdatePayslip(calc)}
+                            disabled={saving}
+                            className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-500 shadow-xs"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            <span>{calc.isSaved ? "Update" : "Save"} Payslip</span>
+                          </button>
+                        )}
 
                         {calc.isSaved && (
                           <button
@@ -887,15 +905,17 @@ export default function PayrollPage() {
 
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleSaveOrUpdatePayslip(calc)}
-                                disabled={saving}
-                                className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500 shadow-xs"
-                                title="Update / Save Payslip"
-                              >
-                                <RefreshCw className="h-3 w-3" />
-                                <span>{calc.isSaved ? "Update Payslip" : "Save Payslip"}</span>
-                              </button>
+                              {editable && (
+                                <button
+                                  onClick={() => handleSaveOrUpdatePayslip(calc)}
+                                  disabled={saving}
+                                  className="cursor-pointer flex items-center gap-1 rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500 shadow-xs"
+                                  title="Update / Save Payslip"
+                                >
+                                  <RefreshCw className="h-3 w-3" />
+                                  <span>{calc.isSaved ? "Update Payslip" : "Save Payslip"}</span>
+                                </button>
+                              )}
 
                               {calc.isSaved && (
                                 <button
@@ -972,12 +992,14 @@ export default function PayrollPage() {
                 <p className="text-xs text-zinc-500 mt-1 mb-4">
                   Add official gym holidays (e.g., Diwali, New Year) so they are excluded from staff leave deductions.
                 </p>
-                <button
-                  onClick={() => handleOpenAddHolidayModal()}
-                  className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
-                >
-                  + Add Holiday Now
-                </button>
+                {editable && (
+                  <button
+                    onClick={() => handleOpenAddHolidayModal()}
+                    className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                  >
+                    + Add Holiday Now
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -996,22 +1018,24 @@ export default function PayrollPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleOpenAddHolidayModal(h)}
-                        className="cursor-pointer flex h-7 w-7 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                        title="Edit Holiday"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteHolidayClick(h)}
-                        className="cursor-pointer flex h-7 w-7 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                        title="Delete Holiday"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    {editable && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenAddHolidayModal(h)}
+                          className="cursor-pointer flex h-7 w-7 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                          title="Edit Holiday"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteHolidayClick(h)}
+                          className="cursor-pointer flex h-7 w-7 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                          title="Delete Holiday"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

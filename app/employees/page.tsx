@@ -37,7 +37,9 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface EmployeeMember {
   id: string;
@@ -63,6 +65,9 @@ interface OutletItem {
 
 export default function EmployeesPage() {
   const router = useRouter();
+  const { canEdit } = useAuth();
+  const editable = canEdit("/employees");
+
   const [employeeList, setEmployeeList] = useState<EmployeeMember[]>([]);
   const [outlets, setOutlets] = useState<OutletItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,6 +251,7 @@ export default function EmployeesPage() {
 
   // Open Add / Edit Employee Modal
   const handleOpenAddEmployeeModal = () => {
+    if (!editable) return;
     setEditingEmployeeId(null);
     setName("");
     setMobile("");
@@ -264,6 +270,7 @@ export default function EmployeesPage() {
 
   const handleOpenEditEmployeeModal = (emp: EmployeeMember, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setEditingEmployeeId(emp.id);
     setName(emp.name);
     setMobile(emp.mobile);
@@ -356,6 +363,7 @@ export default function EmployeesPage() {
   // Delete Employee Handler
   const handleDeleteEmployeeClick = (emp: EmployeeMember, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setDeleteTarget({
       id: emp.id,
       name: emp.name,
@@ -404,9 +412,16 @@ export default function EmployeesPage() {
     <PageContainer
       title="Employees & Trainers Directory"
       subtitle="Manage gym employees, trainers, attendance security, advances, and monthly salary payouts"
-      actionText="+ Add Employee"
-      onActionClick={handleOpenAddEmployeeModal}
+      actionText={editable ? "+ Add Employee" : undefined}
+      onActionClick={editable ? handleOpenAddEmployeeModal : undefined}
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Employees. Adding, editing, or deleting employee records is restricted.</span>
+        </div>
+      )}
+
       {/* Top Stat Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -513,13 +528,15 @@ export default function EmployeesPage() {
               />
             </div>
 
-            <button
-              onClick={handleOpenAddEmployeeModal}
-              className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Employee</span>
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddEmployeeModal}
+                className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Employee</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -542,12 +559,14 @@ export default function EmployeesPage() {
             <p className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-5">
               Add trainers, front desk staff, or gym instructors to start tracking attendance and payroll.
             </p>
-            <button
-              onClick={handleOpenAddEmployeeModal}
-              className="cursor-pointer rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
-            >
-              + Add Employee Now
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddEmployeeModal}
+                className="cursor-pointer rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
+              >
+                + Add Employee Now
+              </button>
+            )}
           </div>
         ) : (
           <div>
@@ -619,22 +638,24 @@ export default function EmployeesPage() {
                       <span>View Details →</span>
                     </span>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => handleOpenEditEmployeeModal(emp, e)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                        title="Edit Employee"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteEmployeeClick(emp, e)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                        title="Delete Employee"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    {editable && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => handleOpenEditEmployeeModal(emp, e)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                          title="Edit Employee"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteEmployeeClick(emp, e)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                          title="Delete Employee"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

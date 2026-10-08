@@ -36,7 +36,9 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 export type VisitorStatus =
   | "Visited"
@@ -67,6 +69,8 @@ const STATUS_OPTIONS: VisitorStatus[] = [
 
 export default function VisitorsPage() {
   const toast = useToast();
+  const { canEdit } = useAuth();
+  const editable = canEdit("/visitors");
 
   const [visitors, setVisitors] = useState<VisitorRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +126,7 @@ export default function VisitorsPage() {
 
   // Open Modal for Create
   const handleOpenAddModal = () => {
+    if (!editable) return;
     setEditingId(null);
     setName("");
     setMobile("");
@@ -134,6 +139,7 @@ export default function VisitorsPage() {
 
   // Open Modal for Edit
   const handleOpenEditModal = (v: VisitorRecord) => {
+    if (!editable) return;
     setEditingId(v.id);
     setName(v.name || "");
     setMobile(v.mobile || "");
@@ -147,6 +153,7 @@ export default function VisitorsPage() {
   // Form Submission Handler with Duplicate Mobile Check
   const handleSaveVisitor = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
 
     const trimmedName = name.trim();
     const trimmedMobile = mobile.trim();
@@ -201,7 +208,7 @@ export default function VisitorsPage() {
 
   // Delete Visitor Handler
   const handleDeleteVisitor = async () => {
-    if (!deleteTarget) return;
+    if (!editable || !deleteTarget) return;
 
     try {
       await deleteDoc(doc(db, "visitors", deleteTarget.id));
@@ -261,9 +268,16 @@ export default function VisitorsPage() {
     <PageContainer
       title="Visitor Inquiries & Leads"
       subtitle="Track gym visitors, follow-up statuses, and visitor inquiry details"
-      actionText="Add Visitor"
-      onActionClick={handleOpenAddModal}
+      actionText={editable ? "Add Visitor" : undefined}
+      onActionClick={editable ? handleOpenAddModal : undefined}
     >
+      {/* View-Only Mode Banner */}
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for this page. Adding, editing, or deleting visitor inquiries is restricted.</span>
+        </div>
+      )}
       {/* Search & Filter Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 mb-6">
         {/* Search Input Box */}
@@ -330,7 +344,7 @@ export default function VisitorsPage() {
                 ? "Try adjusting your search terms or clearing status filters."
                 : "Click the button below to register new gym visitors, track inquiry notes, and manage follow-up statuses."}
             </p>
-            {!searchTerm && statusFilter === "all" && (
+            {editable && !searchTerm && statusFilter === "all" && (
               <button
                 onClick={handleOpenAddModal}
                 className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-500 transition-colors shadow-xs"
@@ -399,22 +413,24 @@ export default function VisitorsPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                    <button
-                      onClick={() => handleOpenEditModal(v)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
-                      title="Edit Visitor"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
-                      title="Delete Visitor"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {editable && (
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                      <button
+                        onClick={() => handleOpenEditModal(v)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                        title="Edit Visitor"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400"
+                        title="Delete Visitor"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -504,22 +520,24 @@ export default function VisitorsPage() {
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenEditModal(v)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 transition-colors"
-                            title="Edit Visitor"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
-                            title="Delete Visitor"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        {editable && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditModal(v)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-amber-950/30 dark:hover:text-amber-400 transition-colors"
+                              title="Edit Visitor"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget({ id: v.id, name: v.name })}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
+                              title="Delete Visitor"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

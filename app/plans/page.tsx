@@ -31,7 +31,9 @@ import {
   ChevronRight,
   Building2,
   Globe,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface GymOutlet {
   id: string;
@@ -53,6 +55,9 @@ interface MembershipPlan {
 }
 
 export default function PlansPage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/plans");
+
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [outlets, setOutlets] = useState<GymOutlet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +146,7 @@ export default function PlansPage() {
   }, []);
 
   const handleOpenAddModal = () => {
+    if (!editable) return;
     setEditingId(null);
     setPlanName("");
     setPlanAmount("");
@@ -157,6 +163,7 @@ export default function PlansPage() {
   };
 
   const handleEditClick = (plan: MembershipPlan) => {
+    if (!editable) return;
     setEditingId(plan.id);
     setPlanName(plan.name);
     setPlanAmount(plan.amount.toString());
@@ -216,6 +223,7 @@ export default function PlansPage() {
   const [deleting, setDeleting] = useState(false);
 
   const handleDeletePlan = (id: string, name: string) => {
+    if (!editable) return;
     setDeleteTarget({ id, name });
   };
 
@@ -268,9 +276,16 @@ export default function PlansPage() {
     <PageContainer
       title="Plans"
       subtitle="Configure gym membership packages and outlet-specific pricing tiers"
-      actionText="Add Plan"
-      onActionClick={handleOpenAddModal}
+      actionText={editable ? "Add Plan" : undefined}
+      onActionClick={editable ? handleOpenAddModal : undefined}
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Plans. Adding, editing, or deleting membership packages is restricted.</span>
+        </div>
+      )}
+
       {/* Outlet Tabs Selector */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         <button
@@ -462,13 +477,15 @@ export default function PlansPage() {
                 ? `Click Add Plan to configure a membership package specifically for ${currentOutletName}.`
                 : "Click the Add Plan button to define your gym membership packages."}
             </p>
-            <button
-              onClick={handleOpenAddModal}
-              className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Plan Now</span>
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddModal}
+                className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Plan Now</span>
+              </button>
+            )}
           </div>
         ) : (
           <div>
@@ -509,22 +526,24 @@ export default function PlansPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => handleEditClick(plan)}
-                      className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                      title="Edit Plan"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeletePlan(plan.id, plan.name)}
-                      className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                      title="Delete Plan"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {editable && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleEditClick(plan)}
+                        className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        title="Edit Plan"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlan(plan.id, plan.name)}
+                        className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-rose-600 dark:border-zinc-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        title="Delete Plan"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -582,22 +601,26 @@ export default function PlansPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleEditClick(plan)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
-                            title="Edit Plan"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePlan(plan.id, plan.name)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
-                            title="Delete Plan"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        {editable ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleEditClick(plan)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                              title="Edit Plan"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlan(plan.id, plan.name)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                              title="Delete Plan"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 text-xs italic">View only</span>
+                        )}
                       </td>
                     </tr>
                   ))}

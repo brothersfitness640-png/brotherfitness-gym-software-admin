@@ -34,7 +34,9 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface CategoryItem {
   id: string;
@@ -54,6 +56,9 @@ interface ProductItem {
 }
 
 export default function ProductsPage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/products");
+
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,6 +161,7 @@ export default function ProductsPage() {
 
   // --- CATEGORY HANDLERS ---
   const handleOpenAddCategoryModal = (cat?: CategoryItem) => {
+    if (!editable) return;
     if (cat) {
       setEditingCategoryId(cat.id);
       setCatNameInput(cat.name);
@@ -168,6 +174,7 @@ export default function ProductsPage() {
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
     if (!catNameInput.trim()) return;
     setSaving(true);
     try {
@@ -193,6 +200,7 @@ export default function ProductsPage() {
   };
 
   const handleDeleteCategoryClick = (cat: CategoryItem) => {
+    if (!editable) return;
     setDeleteTarget({
       id: cat.id,
       type: "category",
@@ -203,6 +211,7 @@ export default function ProductsPage() {
 
   // --- PRODUCT HANDLERS ---
   const handleOpenAddProductModal = () => {
+    if (!editable) return;
     setEditingProductId(null);
     setProdName("");
     setProdPrice("");
@@ -218,6 +227,7 @@ export default function ProductsPage() {
 
   const handleOpenEditProductModal = (product: ProductItem, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setEditingProductId(product.id);
     setProdName(product.name);
     setProdCategoryId(product.categoryId || "");
@@ -240,6 +250,7 @@ export default function ProductsPage() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
     if (!prodName.trim() || !prodPrice.trim()) {
       alert("Please fill in required fields (Product Name, Price)");
       return;
@@ -304,6 +315,7 @@ export default function ProductsPage() {
 
   const handleDeleteProductClick = (product: ProductItem, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setDeleteTarget({
       id: product.id,
       type: "product",
@@ -313,7 +325,7 @@ export default function ProductsPage() {
   };
 
   const handleConfirmGenericDelete = async () => {
-    if (!deleteTarget) return;
+    if (!editable || !deleteTarget) return;
     setDeleting(true);
     try {
       if (deleteTarget.type === "product") {
@@ -360,9 +372,17 @@ export default function ProductsPage() {
     <PageContainer
       title="Products & Inventory"
       subtitle="Manage gym supplements, merchandise, equipment, categories, and sales"
-      actionText="+ Add Product"
-      onActionClick={handleOpenAddProductModal}
+      actionText={editable ? "+ Add Product" : undefined}
+      onActionClick={editable ? handleOpenAddProductModal : undefined}
     >
+      {/* View-Only Mode Banner */}
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for this page. Adding, editing, or deleting products and categories is restricted.</span>
+        </div>
+      )}
+
       {/* Top Stat Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -599,22 +619,24 @@ export default function ProductsPage() {
                   </div>
 
                   {/* Card Actions */}
-                  <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                    <button
-                      onClick={(e) => handleOpenEditProductModal(prod, e)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                      title="Edit Product"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteProductClick(prod, e)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                      title="Delete Product"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {editable && (
+                    <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                      <button
+                        onClick={(e) => handleOpenEditProductModal(prod, e)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                        title="Edit Product"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteProductClick(prod, e)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -902,16 +924,18 @@ export default function ProductsPage() {
                 <span className="text-xs font-semibold text-zinc-500">
                   Category Name List
                 </span>
-                <button
-                  onClick={() => {
-                    setIsCategoryListModalOpen(false);
-                    handleOpenAddCategoryModal();
-                  }}
-                  className="cursor-pointer flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Category</span>
-                </button>
+                {editable && (
+                  <button
+                    onClick={() => {
+                      setIsCategoryListModalOpen(false);
+                      handleOpenAddCategoryModal();
+                    }}
+                    className="cursor-pointer flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Category</span>
+                  </button>
+                )}
               </div>
 
               {categories.length === 0 ? (
@@ -937,25 +961,27 @@ export default function ProductsPage() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setIsCategoryListModalOpen(false);
-                              handleOpenAddCategoryModal(cat);
-                            }}
-                            className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                            title="Edit Category"
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategoryClick(cat)}
-                            className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                            title="Delete Category"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+                        {editable && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setIsCategoryListModalOpen(false);
+                                handleOpenAddCategoryModal(cat);
+                              }}
+                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                              title="Edit Category"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategoryClick(cat)}
+                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                              title="Delete Category"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

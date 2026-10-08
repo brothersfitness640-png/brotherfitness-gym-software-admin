@@ -47,6 +47,7 @@ import {
   FileText,
   Check,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface StaffMember {
   id: string;
@@ -312,6 +313,8 @@ export default function StaffDetailPage() {
   const params = useParams();
   const router = useRouter();
   const staffId = params?.id as string;
+  const { canEdit } = useAuth();
+  const editable = canEdit("/employees");
 
   const [staff, setStaff] = useState<StaffMember | null>(null);
   const [outlets, setOutlets] = useState<OutletItem[]>([]);
@@ -577,6 +580,7 @@ export default function StaffDetailPage() {
 
   // --- AUTOMATED HANDS-FREE STRICT SECURITY ATTENDANCE FLOW ---
   const handleStartAutomatedAttendanceFlow = (a?: StaffAttendanceRecord) => {
+    if (!editable) return;
     stopAttendanceCamera();
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -766,6 +770,7 @@ export default function StaffDetailPage() {
 
   // Out Time Modal Handlers
   const handleOpenOutTimeModal = (a: StaffAttendanceRecord) => {
+    if (!editable) return;
     setOutTimeAttRecord(a);
     setManualOutTime(a.outTime && a.outTime !== "--" ? a.outTime : getCurrentFormattedTime());
     setIsOutTimeModalOpen(true);
@@ -773,7 +778,7 @@ export default function StaffDetailPage() {
 
   const handleSaveOutTime = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffId || !outTimeAttRecord || !manualOutTime.trim()) return;
+    if (!staffId || !outTimeAttRecord || !manualOutTime.trim() || !editable) return;
     setSaving(true);
     try {
       await updateDoc(
@@ -795,7 +800,7 @@ export default function StaffDetailPage() {
   // Save Profile Changes
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffId || !editName.trim() || !editMobile.trim()) return;
+    if (!staffId || !editName.trim() || !editMobile.trim() || !editable) return;
     setSaving(true);
     try {
       const matchedOutlet = outlets.find((o) => o.id === editSelectedOutletId);
@@ -823,6 +828,7 @@ export default function StaffDetailPage() {
 
   // --- TAB 3: ADVANCE PAYMENTS HANDLERS ---
   const handleOpenAdvanceModal = (adv?: AdvanceRecord) => {
+    if (!editable) return;
     if (adv) {
       setEditingAdvanceId(adv.id);
       setAdvTitle(adv.title);
@@ -841,7 +847,7 @@ export default function StaffDetailPage() {
 
   const handleSaveAdvance = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffId || !advTitle.trim() || !advAmount) return;
+    if (!staffId || !advTitle.trim() || !advAmount || !editable) return;
     setSaving(true);
     try {
       const advData = {
@@ -874,6 +880,7 @@ export default function StaffDetailPage() {
     advanceId: string,
     inst?: AdvanceInstallmentRecord
   ) => {
+    if (!editable) return;
     setTargetAdvanceId(advanceId);
     if (inst) {
       setEditingAdvInstallmentId(inst.id);
@@ -901,7 +908,7 @@ export default function StaffDetailPage() {
 
   const handleSaveAdvInstallment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffId || !advInstAmount) return;
+    if (!staffId || !advInstAmount || !editable) return;
 
     const enteredAmount = parseFloat(advInstAmount) || 0;
     if (enteredAmount <= 0) {
@@ -1031,7 +1038,7 @@ export default function StaffDetailPage() {
   const currentMonthCalc = calculateSalaryForMonth(selectedPayrollMonth);
 
   const handleGenerateSavePayslip = async () => {
-    if (!staffId || !staff) return;
+    if (!staffId || !staff || !editable) return;
     setSaving(true);
     try {
       const payslipData = {
@@ -1067,7 +1074,7 @@ export default function StaffDetailPage() {
 
   // Generic Deletion Confirm
   const handleConfirmGenericDelete = async () => {
-    if (!deleteTarget || !staffId) return;
+    if (!deleteTarget || !staffId || !editable) return;
     setDeleting(true);
     try {
       if (deleteTarget.type === "attendance") {
@@ -1122,6 +1129,13 @@ export default function StaffDetailPage() {
       actionText="← Back to Staff Directory"
       onActionClick={() => router.push("/staff")}
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Employees. Adding, editing, attendance logging, or payroll actions are restricted.</span>
+        </div>
+      )}
+
       {/* Top Banner Profile Summary */}
       <div className="flex flex-col md:flex-row md:items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 gap-4">
         <div className="flex items-center gap-4">
@@ -1159,13 +1173,15 @@ export default function StaffDetailPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsEditingProfile(true)}
-          className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-        >
-          <Edit2 className="h-3.5 w-3.5" />
-          <span>Edit Profile</span>
-        </button>
+        {editable && (
+          <button
+            onClick={() => setIsEditingProfile(true)}
+            className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+            <span>Edit Profile</span>
+          </button>
+        )}
       </div>
 
       {/* Tabs Header Navigation */}
@@ -1293,7 +1309,7 @@ export default function StaffDetailPage() {
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   <span>Today's Attendance Marked</span>
                 </div>
-              ) : (
+              ) : editable ? (
                 <button
                   onClick={() => handleStartAutomatedAttendanceFlow()}
                   className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
@@ -1301,7 +1317,7 @@ export default function StaffDetailPage() {
                   <ShieldCheck className="h-4 w-4" />
                   <span>+ Log Attendance (Auto-Security Scan)</span>
                 </button>
-              )}
+              ) : null}
             </div>
 
             {/* Attendance Table */}
@@ -1353,20 +1369,22 @@ export default function StaffDetailPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => {
-                              setDeleteTarget({
-                                id: a.id,
-                                type: "attendance",
-                                title: "Delete Attendance Record",
-                                message: `Are you sure you want to delete attendance record for date ${a.date}?`,
-                              });
-                            }}
-                            className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 ml-auto"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          {editable && (
+                            <button
+                              onClick={() => {
+                                setDeleteTarget({
+                                  id: a.id,
+                                  type: "attendance",
+                                  title: "Delete Attendance Record",
+                                  message: `Are you sure you want to delete attendance record for date ${a.date}?`,
+                                });
+                              }}
+                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 ml-auto"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1391,13 +1409,15 @@ export default function StaffDetailPage() {
                   Record advance payouts to staff and track advance-to-advance installment settlements
                 </p>
               </div>
-              <button
-                onClick={() => handleOpenAdvanceModal()}
-                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>+ Issue Staff Advance</span>
-              </button>
+              {editable && (
+                <button
+                  onClick={() => handleOpenAdvanceModal()}
+                  className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>+ Issue Staff Advance</span>
+                </button>
+              )}
             </div>
 
             {advances.length === 0 ? (
@@ -1433,29 +1453,31 @@ export default function StaffDetailPage() {
                             <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">₹{adv.amount.toLocaleString("en-IN")}</span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleOpenAdvanceModal(adv)}
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100"
-                              title="Edit Advance"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                setDeleteTarget({
-                                  id: adv.id,
-                                  type: "advance",
-                                  title: "Delete Advance Record",
-                                  message: `Are you sure you want to delete advance "${adv.title}"?`,
-                                })
-                              }
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                              title="Delete Advance"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          {editable && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenAdvanceModal(adv)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100"
+                                title="Edit Advance"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setDeleteTarget({
+                                    id: adv.id,
+                                    type: "advance",
+                                    title: "Delete Advance Record",
+                                    message: `Are you sure you want to delete advance "${adv.title}"?`,
+                                  })
+                                }
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                title="Delete Advance"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1489,7 +1511,7 @@ export default function StaffDetailPage() {
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                               <span>Advance Fully Settled</span>
                             </div>
-                          ) : (
+                          ) : editable ? (
                             <button
                               onClick={() => handleOpenAdvInstallmentModal(adv.id)}
                               className="cursor-pointer flex items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500"
@@ -1497,7 +1519,7 @@ export default function StaffDetailPage() {
                               <Plus className="h-3 w-3" />
                               <span>Add Advance Installment</span>
                             </button>
-                          )}
+                          ) : null}
                         </div>
 
                         {insts.length === 0 ? (
@@ -1538,27 +1560,31 @@ export default function StaffDetailPage() {
                                     </td>
                                     <td className="px-4 py-2.5 text-right">
                                       <div className="flex items-center justify-end gap-1">
-                                        <button
-                                          onClick={() => handleOpenAdvInstallmentModal(adv.id, i)}
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100"
-                                          title="Edit"
-                                        >
-                                          <Edit2 className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            setDeleteTarget({
-                                              id: i.id,
-                                              type: "advance_installment",
-                                              title: "Delete Advance Installment",
-                                              message: "Are you sure you want to delete this advance installment?",
-                                            })
-                                          }
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                                        {editable && (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenAdvInstallmentModal(adv.id, i)}
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100"
+                                              title="Edit"
+                                            >
+                                              <Edit2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              onClick={() =>
+                                                setDeleteTarget({
+                                                  id: i.id,
+                                                  type: "advance_installment",
+                                                  title: "Delete Advance Installment",
+                                                  message: "Are you sure you want to delete this advance installment?",
+                                                })
+                                              }
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                              title="Delete"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>
@@ -1600,14 +1626,16 @@ export default function StaffDetailPage() {
                   className="h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-900 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                 />
 
-                <button
-                  onClick={handleGenerateSavePayslip}
-                  disabled={saving}
-                  className="cursor-pointer flex h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-4 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Generate Payslip</span>
-                </button>
+                {editable && (
+                  <button
+                    onClick={handleGenerateSavePayslip}
+                    disabled={saving}
+                    className="cursor-pointer flex h-9 items-center gap-1.5 rounded-lg bg-amber-400 px-4 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Generate Payslip</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1699,19 +1727,21 @@ export default function StaffDetailPage() {
                                 <Eye className="h-3 w-3" />
                                 <span>Payslip</span>
                               </button>
-                              <button
-                                onClick={() =>
-                                  setDeleteTarget({
-                                    id: p.id,
-                                    type: "payroll",
-                                    title: "Delete Payslip Record",
-                                    message: `Are you sure you want to delete payslip for ${p.month}?`,
-                                  })
-                                }
-                                className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              {editable && (
+                                <button
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      id: p.id,
+                                      type: "payroll",
+                                      title: "Delete Payslip Record",
+                                      message: `Are you sure you want to delete payslip for ${p.month}?`,
+                                    })
+                                  }
+                                  className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

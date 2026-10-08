@@ -38,7 +38,9 @@ import {
   Globe,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface MembershipPlan {
   id: string;
@@ -73,6 +75,9 @@ interface ClientMember {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { canEdit } = useAuth();
+  const editable = canEdit("/clients");
+
   const [clients, setClients] = useState<ClientMember[]>([]);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [outlets, setOutlets] = useState<GymOutlet[]>([]);
@@ -198,6 +203,7 @@ export default function ClientsPage() {
   };
 
   const handleOpenAddModal = () => {
+    if (!editable) return;
     setEditingId(null);
     setName("");
     setMobile("");
@@ -223,6 +229,7 @@ export default function ClientsPage() {
 
   const handleOpenEditModal = (client: ClientMember, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setEditingId(client.id);
     setName(client.name);
     setMobile(client.mobile);
@@ -408,6 +415,7 @@ export default function ClientsPage() {
 
   const handleOpenDeleteModal = (id: string, clientName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!editable) return;
     setDeleteTarget({ id, name: clientName });
   };
 
@@ -448,9 +456,16 @@ export default function ClientsPage() {
     <PageContainer
       title="Clients"
       subtitle="View, manage, and register gym members and memberships"
-      actionText="Add Client"
-      onActionClick={handleOpenAddModal}
+      actionText={editable ? "Add Client" : undefined}
+      onActionClick={editable ? handleOpenAddModal : undefined}
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Clients. Adding, editing, or deleting client records is restricted.</span>
+        </div>
+      )}
+
       {/* Top Stat Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -555,13 +570,15 @@ export default function ClientsPage() {
             <p className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-5">
               Click the Add Client button to register members with photo, GPS location, and plan assignment.
             </p>
-            <button
-              onClick={handleOpenAddModal}
-              className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Client Now</span>
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddModal}
+                className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Client Now</span>
+              </button>
+            )}
           </div>
         ) : (
           <div>
@@ -628,20 +645,24 @@ export default function ClientsPage() {
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        onClick={(e) => handleOpenEditModal(client, e)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
-                        title="Edit Client"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 dark:border-red-900/40 dark:text-red-400"
-                        title="Delete Client"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {editable && (
+                        <>
+                          <button
+                            onClick={(e) => handleOpenEditModal(client, e)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                            title="Edit Client"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 dark:border-red-900/40 dark:text-red-400"
+                            title="Delete Client"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -738,20 +759,24 @@ export default function ClientsPage() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            onClick={(e) => handleOpenEditModal(client, e)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
-                            title="Edit Client"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
-                            title="Delete Client"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {editable && (
+                            <>
+                              <button
+                                onClick={(e) => handleOpenEditModal(client, e)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 transition-colors"
+                                title="Edit Client"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleOpenDeleteModal(client.id, client.name, e)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                                title="Delete Client"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

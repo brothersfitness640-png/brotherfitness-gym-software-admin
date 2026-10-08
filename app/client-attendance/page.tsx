@@ -37,7 +37,9 @@ import {
   Building2,
   Phone,
   UserCheck,
+  Eye,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface ClientMember {
   id: string;
@@ -247,9 +249,13 @@ function getCurrentFormattedTime(): string {
 }
 
 export default function ClientAttendancePage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/client-attendance");
+
   const [clients, setClients] = useState<ClientMember[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [attMarkType, setAttMarkType] = useState<"in" | "out">("in");
 
   // Date Basis State - DEFAULT TO TODAY
   const [selectedDate, setSelectedDate] = useState<string>(getTodayIsoString());
@@ -437,7 +443,12 @@ export default function ClientAttendancePage() {
     setIsCameraActive(false);
   };
 
-  const handleStartAttendanceFlowForClient = (client: ClientMember) => {
+  const handleStartAttendanceFlowForClient = (
+    client: ClientMember,
+    markType: "in" | "out" = "in"
+  ) => {
+    if (!editable) return;
+    setAttMarkType(markType);
     stopAttendanceCamera();
     setActiveClient(client);
     setCalculatedRadiusMeters(null);
@@ -449,7 +460,39 @@ export default function ClientAttendancePage() {
     setIsSecurityModalOpen(true);
 
     // Trigger Location Check
-    runAutoLocationCheck(client);
+    runAutoLocationCheck(client, markType);
+  };
+
+  const handleQuickMarkOut = async (client: ClientMember, existingAtt?: AttendanceRecord) => {
+    if (!editable) return;
+    setSaving(true);
+    try {
+      const outTimeStr = getCurrentFormattedTime();
+      const docRef = doc(db, "clients", client.id, "attendance", selectedDate);
+      await setDoc(
+        docRef,
+        {
+          clientId: client.id,
+          clientName: client.name,
+          clientMobile: client.mobile,
+          clientPhotoUrl: client.photoUrl || "",
+          outletName: client.outletName,
+          date: selectedDate,
+          inTime: existingAtt?.inTime || outTimeStr,
+          outTime: outTimeStr,
+          status: "Present",
+          verified: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      playAudioBeep("success");
+    } catch (err) {
+      console.error("Error setting out time:", err);
+      alert("Failed to mark out time.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
@@ -469,7 +512,10 @@ export default function ClientAttendancePage() {
     }
   };
 
-  const runAutoLocationCheck = (client: ClientMember) => {
+  const runAutoLocationCheck = (
+    client: ClientMember,
+    markType: "in" | "out" = attMarkType
+  ) => {
     setAttStep("scanning_location");
     if (!navigator.geolocation) {
       // Fallback: Location check approved
@@ -478,7 +524,7 @@ export default function ClientAttendancePage() {
       setIsRadiusValid(true);
       setAttStep("success");
       playAudioBeep("celebration");
-      autoSaveAttendanceRecord(client, 100);
+      autoSaveAttendanceRecord(client, 100, markType);
       return;
     }
 
@@ -504,7 +550,7 @@ export default function ClientAttendancePage() {
           setAttStep("success");
           playAudioBeep("celebration");
           // Mark attendance directly - Location check only, no face recognition required!
-          autoSaveAttendanceRecord(client, 100);
+          autoSaveAttendanceRecord(client, 100, markType);
         } else {
           setIsRadiusValid(false);
           setSecurityErrorMsg(
@@ -521,7 +567,7 @@ export default function ClientAttendancePage() {
         setIsRadiusValid(true);
         setAttStep("success");
         playAudioBeep("celebration");
-        autoSaveAttendanceRecord(client, 100);
+        autoSaveAttendanceRecord(client, 100, markType);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -630,11 +676,16 @@ export default function ClientAttendancePage() {
   };
 
   // Auto-Save Attendance to subcollection `clients/{clientId}/attendance/{date}`
-  const autoSaveAttendanceRecord = async (client: ClientMember, matchScore: number) => {
+  const autoSaveAttendanceRecord = async (
+    client: ClientMember,
+    matchScore: number,
+    markType: "in" | "out" = attMarkType
+  ) => {
     setSaving(true);
     try {
-      const inTimeStr = getCurrentFormattedTime();
+      const timeStr = getCurrentFormattedTime();
       const docRef = doc(db, "clients", client.id, "attendance", selectedDate);
+      const existingAtt = attendanceMapByClientId.get(client.id);
 
       const attData = {
         clientId: client.id,
@@ -643,8 +694,8 @@ export default function ClientAttendancePage() {
         clientPhotoUrl: client.photoUrl || "",
         outletName: client.outletName,
         date: selectedDate,
-        inTime: inTimeStr,
-        outTime: "", // Initially empty; added manually later
+        inTime: markType === "in" ? timeStr : (existingAtt?.inTime || timeStr),
+        outTime: markType === "out" ? timeStr : (existingAtt?.outTime || ""),
         status: "Present",
         radiusDistance: calculatedRadiusMeters || 12,
         faceMatchScore: matchScore,
@@ -777,6 +828,13 @@ export default function ClientAttendancePage() {
       title="Client Attendance"
       subtitle="Track daily member check-ins, automated security scans & in/out time logs"
     >
+      {!editable && (
+        <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 px-3.5 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 mb-2">
+          <Eye className="h-4 w-4 shrink-0 text-amber-500" />
+          <span>View-Only Mode: You have read-only access to client attendance logs. Marking and editing are restricted to staff with Edit permissions.</span>
+        </div>
+      )}
+
       {/* Date Basis Navigation Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-amber-400/30 bg-amber-50/50 p-4 shadow-sm dark:border-amber-400/20 dark:bg-amber-950/20 gap-3">
         <div className="flex items-center gap-3">
@@ -1069,22 +1127,49 @@ export default function ClientAttendancePage() {
                     )}
 
                     <div className="flex items-center justify-end gap-2 pt-1">
-                      {!isMarked ? (
-                        <button
-                          onClick={() => handleStartAttendanceFlowForClient(client)}
-                          className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-black shadow-xs hover:bg-amber-500"
-                        >
-                          <ShieldCheck className="h-4 w-4" />
-                          <span>+ Mark Attendance</span>
-                        </button>
-                      ) : (
-                        <>
+                      {!editable ? (
+                        <span className="text-[11px] font-semibold text-zinc-400">View Only</span>
+                      ) : !isMarked ? (
+                        <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => handleOpenOutTimeModal(client, att)}
-                            className="cursor-pointer flex h-8 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 text-xs font-bold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
+                            onClick={() => handleStartAttendanceFlowForClient(client, "in")}
+                            className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-bold text-black shadow-xs hover:bg-amber-500"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>+ Mark IN</span>
+                          </button>
+                          <button
+                            onClick={() => handleStartAttendanceFlowForClient(client, "out")}
+                            className="cursor-pointer flex h-8 items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 text-xs font-bold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
                           >
                             <LogOut className="h-3.5 w-3.5" />
-                            <span>{att.outTime ? "Edit Out Time" : "+ Out Time"}</span>
+                            <span>+ OUT</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {(!att.outTime || att.outTime === "" || att.outTime === "--") ? (
+                            <button
+                              onClick={() => handleQuickMarkOut(client, att)}
+                              className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-xs font-bold text-black hover:bg-amber-600 shadow-xs"
+                              title="Quick Stamp Out Time"
+                            >
+                              <LogOut className="h-3.5 w-3.5" />
+                              <span>+ Mark OUT</span>
+                            </button>
+                          ) : (
+                            <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              Completed
+                            </span>
+                          )}
+
+                          <button
+                            onClick={() => handleOpenOutTimeModal(client, att)}
+                            className="cursor-pointer flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                            title="Edit Out Time"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>Edit Out</span>
                           </button>
 
                           <button
@@ -1226,23 +1311,49 @@ export default function ClientAttendancePage() {
                         {/* Action Buttons */}
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {!isMarked ? (
-                              <button
-                                onClick={() => handleStartAttendanceFlowForClient(client)}
-                                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black shadow-xs hover:bg-amber-500 transition-transform active:scale-95"
-                              >
-                                <ShieldCheck className="h-3.5 w-3.5" />
-                                <span>+ Mark Attendance</span>
-                              </button>
-                            ) : (
-                              <>
+                            {!editable ? (
+                              <span className="text-[11px] font-semibold text-zinc-400">View Only</span>
+                            ) : !isMarked ? (
+                              <div className="flex items-center gap-1.5">
                                 <button
-                                  onClick={() => handleOpenOutTimeModal(client, att)}
-                                  className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
-                                  title="Set / Edit Out Time"
+                                  onClick={() => handleStartAttendanceFlowForClient(client, "in")}
+                                  className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg bg-amber-400 px-2.5 text-xs font-semibold text-black shadow-xs hover:bg-amber-500 transition-transform active:scale-95"
+                                >
+                                  <Clock className="h-3.5 w-3.5" />
+                                  <span>+ Mark IN</span>
+                                </button>
+                                <button
+                                  onClick={() => handleStartAttendanceFlowForClient(client, "out")}
+                                  className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
                                 >
                                   <LogOut className="h-3.5 w-3.5" />
-                                  <span>{att.outTime ? "Edit Out Time" : "+ Out Time"}</span>
+                                  <span>+ Mark OUT</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                {(!att.outTime || att.outTime === "" || att.outTime === "--") ? (
+                                  <button
+                                    onClick={() => handleQuickMarkOut(client, att)}
+                                    className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg bg-amber-500 px-2.5 text-xs font-semibold text-black hover:bg-amber-600 shadow-xs transition-transform active:scale-95"
+                                    title="Quick Mark OUT"
+                                  >
+                                    <LogOut className="h-3.5 w-3.5" />
+                                    <span>+ Mark OUT</span>
+                                  </button>
+                                ) : (
+                                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 mr-1">
+                                    Completed
+                                  </span>
+                                )}
+
+                                <button
+                                  onClick={() => handleOpenOutTimeModal(client, att)}
+                                  className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                                  title="Edit Out Time"
+                                >
+                                  <Clock className="h-3 w-3" />
+                                  <span>Out Time</span>
                                 </button>
 
                                 <button
@@ -1314,7 +1425,7 @@ export default function ClientAttendancePage() {
                 <ShieldCheck className="h-4.5 w-4.5 text-amber-500" />
                 <div>
                   <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    Automated Check-in Verification
+                    {attMarkType === "in" ? "Automated Check-in (IN) Verification" : "Automated Check-out (OUT) Verification"}
                   </h3>
                   <span className="text-[11px] text-zinc-500 font-medium">
                     Member: {activeClient.name}
@@ -1416,9 +1527,11 @@ export default function ClientAttendancePage() {
               {attStep === "success" && (
                 <div className="rounded-xl border border-emerald-300 bg-emerald-100 p-4 text-center text-xs font-semibold text-emerald-800 flex flex-col items-center gap-1.5 shadow-md dark:bg-emerald-950/80 dark:border-emerald-800 dark:text-emerald-200">
                   <CheckCircle2 className="h-8 w-8 text-emerald-600 mb-1 animate-bounce" />
-                  <span className="text-sm font-semibold">ATTENDANCE MARKED SUCCESSFULLY!</span>
+                  <span className="text-sm font-semibold">
+                    {attMarkType === "in" ? "CHECK-IN (IN) MARKED SUCCESSFULLY!" : "CHECK-OUT (OUT) MARKED SUCCESSFULLY!"}
+                  </span>
                   <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-300">
-                    Location & Photo feature verification passed.
+                    Location verification verified. Time logged: {getCurrentFormattedTime()}
                   </span>
                 </div>
               )}

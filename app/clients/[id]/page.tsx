@@ -49,6 +49,7 @@ import {
   LogOut,
   Package,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 interface ClientMember {
   id: string;
@@ -379,6 +380,8 @@ function getCurrentFormattedTime(): string {
 export default function ClientDetailPage() {
   const params = useParams();
   const clientId = params?.id as string;
+  const { canEdit } = useAuth();
+  const editable = canEdit("/clients");
 
   const [client, setClient] = useState<ClientMember | null>(null);
   const [loadingClient, setLoadingClient] = useState(true);
@@ -689,7 +692,7 @@ export default function ClientDetailPage() {
   // --- TAB 1: PROFILE HANDLERS ---
   const handleSaveProfileEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId) return;
+    if (!clientId || !editable) return;
     setSaving(true);
     try {
       await updateDoc(doc(db, "clients", clientId), {
@@ -710,6 +713,7 @@ export default function ClientDetailPage() {
 
   // --- TAB 2: PAYMENTS HANDLERS ---
   const handleOpenAssignPlanModal = (plan?: AssignedPlan) => {
+    if (!editable) return;
     if (plan) {
       setEditingPlanId(plan.id);
       setPlanName(plan.planName);
@@ -763,7 +767,7 @@ export default function ClientDetailPage() {
 
   const handleSaveAssignedPlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !planName.trim() || !planTotalAmount) return;
+    if (!clientId || !planName.trim() || !planTotalAmount || !editable) return;
     setSaving(true);
     try {
       const planData = {
@@ -814,7 +818,7 @@ export default function ClientDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   const handleConfirmGenericDelete = async () => {
-    if (!deleteTarget || !clientId) return;
+    if (!deleteTarget || !clientId || !editable) return;
     setDeleting(true);
     try {
       if (deleteTarget.type === "assigned_plan") {
@@ -879,6 +883,7 @@ export default function ClientDetailPage() {
 
   // --- INSTALLMENT HANDLERS ---
   const handleOpenInstallmentModal = (assignedPlanId: string, inst?: InstallmentRecord) => {
+    if (!editable) return;
     setTargetAssignedPlanId(assignedPlanId);
     if (inst) {
       setEditingInstallmentId(inst.id);
@@ -904,7 +909,7 @@ export default function ClientDetailPage() {
 
   const handleSaveInstallment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId) return;
+    if (!clientId || !editable) return;
 
     let enteredAmount = parseFloat(instAmount) || 0;
 
@@ -988,6 +993,7 @@ export default function ClientDetailPage() {
 
   // --- TRAINER HANDLERS ---
   const handleOpenTrainerModal = (t?: TrainerRecord) => {
+    if (!editable) return;
     if (t) {
       setEditingTrainerId(t.id);
       setTrainerName(t.name);
@@ -1004,7 +1010,7 @@ export default function ClientDetailPage() {
 
   const handleSaveTrainer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !trainerName.trim()) return;
+    if (!clientId || !trainerName.trim() || !editable) return;
     setSaving(true);
     try {
       const tData = {
@@ -1056,6 +1062,7 @@ export default function ClientDetailPage() {
   };
 
   const handleOpenDietModal = (d?: DietSuggestionRecord) => {
+    if (!editable) return;
     if (d) {
       setEditingDietId(d.id);
       setDietScheduleName(d.name);
@@ -1077,7 +1084,7 @@ export default function ClientDetailPage() {
 
   const handleSaveDiet = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !dietScheduleName.trim() || foodItemList.length === 0) return;
+    if (!clientId || !dietScheduleName.trim() || foodItemList.length === 0 || !editable) return;
     setSaving(true);
     try {
       const dietData = {
@@ -1110,6 +1117,7 @@ export default function ClientDetailPage() {
 
   // --- TAB 6: PRODUCTS & PURCHASES HANDLERS ---
   const handleOpenPurchaseProductModal = (p?: PurchasedProductRecord) => {
+    if (!editable) return;
     if (p) {
       setEditingPurchasedProductId(p.id);
       setSelectedCatalogProductId(p.productId || "");
@@ -1151,7 +1159,7 @@ export default function ClientDetailPage() {
 
   const handleSavePurchasedProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !purchasedProdName.trim() || !purchasedUnitPrice) return;
+    if (!clientId || !purchasedProdName.trim() || !purchasedUnitPrice || !editable) return;
     setSaving(true);
     try {
       const uPrice = parseFloat(purchasedUnitPrice) || 0;
@@ -1204,6 +1212,7 @@ export default function ClientDetailPage() {
     purchasedProductId: string,
     inst?: ProductInstallmentRecord
   ) => {
+    if (!editable) return;
     setTargetPurchasedProductId(purchasedProductId);
     if (inst) {
       setEditingProdInstallmentId(inst.id);
@@ -1231,7 +1240,7 @@ export default function ClientDetailPage() {
 
   const handleSaveProductInstallment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !prodInstAmount) return;
+    if (!clientId || !prodInstAmount || !editable) return;
 
     const enteredAmount = parseFloat(prodInstAmount) || 0;
     if (enteredAmount <= 0) {
@@ -1347,6 +1356,7 @@ export default function ClientDetailPage() {
   };
 
   const handleStartAutomatedAttendanceFlow = (a?: AttendanceRecord) => {
+    if (!editable) return;
     stopAttendanceCamera();
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -1586,8 +1596,8 @@ export default function ClientDetailPage() {
     }
   };
 
-  // Out Time Modal Handlers for Client Details Page
   const handleOpenOutTimeModal = (a: AttendanceRecord) => {
+    if (!editable) return;
     setOutTimeAttRecord(a);
     setManualOutTime(a.outTime && a.outTime !== "--" ? a.outTime : getCurrentFormattedTime());
     setIsOutTimeModalOpen(true);
@@ -1595,7 +1605,7 @@ export default function ClientDetailPage() {
 
   const handleSaveOutTime = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !outTimeAttRecord || !manualOutTime.trim()) return;
+    if (!clientId || !outTimeAttRecord || !manualOutTime.trim() || !editable) return;
     setSaving(true);
     try {
       await updateDoc(
@@ -1697,12 +1707,23 @@ export default function ClientDetailPage() {
     <PageContainer
       title={client.name}
       subtitle={`Client ID: ${client.id.slice(0, 8)} | ${client.outletName}`}
-      actionText="Edit Profile"
-      onActionClick={() => {
-        setActiveTab("profile");
-        setIsEditingProfile(true);
-      }}
+      actionText={editable ? "Edit Profile" : undefined}
+      onActionClick={
+        editable
+          ? () => {
+              setActiveTab("profile");
+              setIsEditingProfile(true);
+            }
+          : undefined
+      }
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Clients. Adding, editing, or deleting client profile data, plans, payments, diet, or products is restricted.</span>
+        </div>
+      )}
+
       {/* Back Button & Top Banner Card */}
       <div className="flex flex-col gap-4">
         <Link
@@ -1856,13 +1877,15 @@ export default function ClientDetailPage() {
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               Client Member Profile Details
             </h3>
-            <button
-              onClick={() => setIsEditingProfile(!isEditingProfile)}
-              className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              <Edit2 className="h-3.5 w-3.5" />
-              <span>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</span>
-            </button>
+            {editable && (
+              <button
+                onClick={() => setIsEditingProfile(!isEditingProfile)}
+                className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                <span>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</span>
+              </button>
+            )}
           </div>
 
           {isEditingProfile ? (
@@ -2053,13 +2076,15 @@ export default function ClientDetailPage() {
                   Assign 6 months / 1 year plans and record installment payments
                 </p>
               </div>
-              <button
-                onClick={() => handleOpenAssignPlanModal()}
-                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Assign Plan to Client</span>
-              </button>
+              {editable && (
+                <button
+                  onClick={() => handleOpenAssignPlanModal()}
+                  className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Assign Plan to Client</span>
+                </button>
+              )}
             </div>
 
             {assignedPlans.length === 0 ? (
@@ -2069,14 +2094,18 @@ export default function ClientDetailPage() {
                   No Assigned Plans Yet
                 </h4>
                 <p className="text-xs text-zinc-500 mt-1 mb-4">
-                  Click Assign Plan to add a 6-month or yearly plan for this member.
+                  {editable
+                    ? "Click Assign Plan to add a 6-month or yearly plan for this member."
+                    : "No plans currently assigned to this member."}
                 </p>
-                <button
-                  onClick={() => handleOpenAssignPlanModal()}
-                  className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
-                >
-                  + Assign Plan Now
-                </button>
+                {editable && (
+                  <button
+                    onClick={() => handleOpenAssignPlanModal()}
+                    className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                  >
+                    + Assign Plan Now
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-5">
@@ -2152,22 +2181,24 @@ export default function ClientDetailPage() {
                             ) : null}
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleOpenAssignPlanModal(plan)}
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                              title="Edit Plan"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAssignedPlan(plan.id, plan.planName)}
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                              title="Delete Plan"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          {editable && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenAssignPlanModal(plan)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                title="Edit Plan"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAssignedPlan(plan.id, plan.planName)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                title="Delete Plan"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2200,7 +2231,7 @@ export default function ClientDetailPage() {
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                               <span>Payment Completed</span>
                             </div>
-                          ) : (
+                          ) : editable ? (
                             <button
                               onClick={() => handleOpenInstallmentModal(plan.id)}
                               className="cursor-pointer flex items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 text-xs font-semibold text-black hover:bg-amber-500"
@@ -2208,7 +2239,7 @@ export default function ClientDetailPage() {
                               <Plus className="h-3 w-3" />
                               <span>Add Installment</span>
                             </button>
-                          )}
+                          ) : null}
                         </div>
 
                         {planInstallments.length === 0 ? (
@@ -2261,20 +2292,26 @@ export default function ClientDetailPage() {
                                     </td>
                                     <td className="px-4 py-2.5 text-right">
                                       <div className="flex items-center justify-end gap-1">
-                                        <button
-                                          onClick={() => handleOpenInstallmentModal(plan.id, inst)}
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                                          title="Edit Installment"
-                                        >
-                                          <Edit2 className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteInstallment(inst.id)}
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                                          title="Delete Installment"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                                        {editable ? (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenInstallmentModal(plan.id, inst)}
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                              title="Edit Installment"
+                                            >
+                                              <Edit2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteInstallment(inst.id)}
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                              title="Delete Installment"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <span className="text-zinc-400 text-[11px] italic">View only</span>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>
@@ -2300,13 +2337,15 @@ export default function ClientDetailPage() {
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               Assigned Gym Trainers
             </h3>
-            <button
-              onClick={() => handleOpenTrainerModal()}
-              className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Assign Trainer</span>
-            </button>
+            {editable && (
+              <button
+                onClick={() => handleOpenTrainerModal()}
+                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Assign Trainer</span>
+              </button>
+            )}
           </div>
 
           {trainers.length === 0 ? (
@@ -2340,22 +2379,26 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenTrainerModal(t)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                      title="Edit Trainer"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTrainer(t.id, t.name)}
-                      className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                      title="Delete Trainer"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {editable ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenTrainerModal(t)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                        title="Edit Trainer"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTrainer(t.id, t.name)}
+                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                        title="Delete Trainer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-zinc-400 text-xs italic">View only</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -2375,13 +2418,15 @@ export default function ClientDetailPage() {
                 Add meal timing schedules with multiple food items, quantities & units
               </p>
             </div>
-            <button
-              onClick={() => handleOpenDietModal()}
-              className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add Diet Suggestion</span>
-            </button>
+            {editable && (
+              <button
+                onClick={() => handleOpenDietModal()}
+                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Diet Suggestion</span>
+              </button>
+            )}
           </div>
 
           {diets.length === 0 ? (
@@ -2417,22 +2462,26 @@ export default function ClientDetailPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleOpenDietModal(d)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                        title="Edit Diet"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteDiet(d.id, d.name)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                        title="Delete Diet"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    {editable ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleOpenDietModal(d)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                          title="Edit Diet"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDiet(d.id, d.name)}
+                          className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                          title="Delete Diet"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-zinc-400 text-xs italic">View only</span>
+                    )}
                   </div>
 
                   <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -2540,7 +2589,7 @@ export default function ClientDetailPage() {
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 <span>Today's Attendance Marked</span>
               </div>
-            ) : (
+            ) : editable ? (
               <button
                 onClick={() => handleStartAutomatedAttendanceFlow()}
                 className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-semibold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
@@ -2548,7 +2597,7 @@ export default function ClientDetailPage() {
                 <ShieldCheck className="h-4 w-4" />
                 <span>+ Log Attendance (Auto-Security Scan)</span>
               </button>
-            )}
+            ) : null}
           </div>
 
           {/* Custom Date Range Filter Inputs */}
@@ -2624,30 +2673,34 @@ export default function ClientDetailPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleOpenOutTimeModal(a)}
-                            className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
-                            title="Set / Edit Out Time"
-                          >
-                            <LogOut className="h-3.5 w-3.5" />
-                            <span>{a.outTime && a.outTime !== "--" ? "Out Time" : "+ Out Time"}</span>
-                          </button>
-                          <button
-                            onClick={() => handleStartAutomatedAttendanceFlow(a)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                            title="Edit Attendance"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAttendance(a.id, a.date)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                            title="Delete Attendance"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        {editable ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenOutTimeModal(a)}
+                              className="cursor-pointer flex h-7.5 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-400/20 dark:text-amber-300"
+                              title="Set / Edit Out Time"
+                            >
+                              <LogOut className="h-3.5 w-3.5" />
+                              <span>{a.outTime && a.outTime !== "--" ? "Out Time" : "+ Out Time"}</span>
+                            </button>
+                            <button
+                              onClick={() => handleStartAutomatedAttendanceFlow(a)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                              title="Edit Attendance"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAttendance(a.id, a.date)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                              title="Delete Attendance"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 text-xs italic">View only</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2709,13 +2762,15 @@ export default function ClientDetailPage() {
                   Record purchased supplements, equipment, or merchandise with product-specific installment payments
                 </p>
               </div>
-              <button
-                onClick={() => handleOpenPurchaseProductModal()}
-                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Purchase Product for Client</span>
-              </button>
+              {editable && (
+                <button
+                  onClick={() => handleOpenPurchaseProductModal()}
+                  className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Purchase Product for Client</span>
+                </button>
+              )}
             </div>
 
             {purchasedProducts.length === 0 ? (
@@ -2725,14 +2780,18 @@ export default function ClientDetailPage() {
                   No Products Purchased Yet
                 </h4>
                 <p className="text-xs text-zinc-500 mt-1 mb-4">
-                  Click Purchase Product to assign supplements or gym gear for this member.
+                  {editable
+                    ? "Click Purchase Product to assign supplements or gym gear for this member."
+                    : "No products currently purchased by this member."}
                 </p>
-                <button
-                  onClick={() => handleOpenPurchaseProductModal()}
-                  className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
-                >
-                  + Purchase Product Now
-                </button>
+                {editable && (
+                  <button
+                    onClick={() => handleOpenPurchaseProductModal()}
+                    className="cursor-pointer rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                  >
+                    + Purchase Product Now
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-5">
@@ -2785,22 +2844,24 @@ export default function ClientDetailPage() {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleOpenPurchaseProductModal(pProd)}
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                              title="Edit Purchase"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePurchasedProduct(pProd.id, pProd.productName)}
-                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                              title="Delete Purchase"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          {editable && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenPurchaseProductModal(pProd)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                title="Edit Purchase"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePurchasedProduct(pProd.id, pProd.productName)}
+                                className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                title="Delete Purchase"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2898,20 +2959,26 @@ export default function ClientDetailPage() {
                                     </td>
                                     <td className="px-4 py-2.5 text-right">
                                       <div className="flex items-center justify-end gap-1">
-                                        <button
-                                          onClick={() => handleOpenProdInstallmentModal(pProd.id, inst)}
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                                          title="Edit Installment"
-                                        >
-                                          <Edit2 className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteProductInstallment(inst.id)}
-                                          className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                                          title="Delete Installment"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                                        {editable ? (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenProdInstallmentModal(pProd.id, inst)}
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                                              title="Edit Installment"
+                                            >
+                                              <Edit2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteProductInstallment(inst.id)}
+                                              className="cursor-pointer flex h-6.5 w-6.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                                              title="Delete Installment"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <span className="text-zinc-400 text-[11px] italic">View only</span>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>

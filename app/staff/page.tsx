@@ -48,6 +48,7 @@ import {
   Settings,
   QrCode,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
 export interface PortalStaffMember {
   id: string;
@@ -84,6 +85,9 @@ export const SYSTEM_MODULES = [
 ];
 
 export default function StaffManagementPage() {
+  const { canEdit } = useAuth();
+  const editable = canEdit("/staff");
+
   const [staffList, setStaffList] = useState<PortalStaffMember[]>([]);
   const [outlets, setOutlets] = useState<OutletItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +233,7 @@ export default function StaffManagementPage() {
 
   // Open Modal Helpers
   const handleOpenAddModal = () => {
+    if (!editable) return;
     setEditingStaffId(null);
     setName("");
     setMobile("");
@@ -248,6 +253,7 @@ export default function StaffManagementPage() {
   };
 
   const handleOpenEditModal = (staff: PortalStaffMember) => {
+    if (!editable) return;
     setEditingStaffId(staff.id);
     setName(staff.name);
     setMobile(staff.mobile);
@@ -401,9 +407,16 @@ export default function StaffManagementPage() {
     <PageContainer
       title="Staff & Role Permissions"
       subtitle="Manage portal staff logins, assigned branch outlets, mobile MPIN, and module access permissions"
-      actionText="+ Add Staff Member"
-      onActionClick={handleOpenAddModal}
+      actionText={editable ? "+ Add Staff Member" : undefined}
+      onActionClick={editable ? handleOpenAddModal : undefined}
     >
+      {!editable && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span><strong>View-Only Mode:</strong> Your staff account has view permissions for Staff Management. Creating, modifying, or deleting staff accounts and permissions is restricted.</span>
+        </div>
+      )}
+
       {/* Top Stat Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -512,13 +525,15 @@ export default function StaffManagementPage() {
               />
             </div>
 
-            <button
-              onClick={handleOpenAddModal}
-              className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Staff</span>
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddModal}
+                className="cursor-pointer flex h-8.5 items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-black hover:bg-amber-500 shadow-md transition-transform active:scale-98"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Staff</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -541,12 +556,14 @@ export default function StaffManagementPage() {
             <p className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-5">
               Create staff accounts with designated branch outlets, MPIN security, and module-specific access.
             </p>
-            <button
-              onClick={handleOpenAddModal}
-              className="cursor-pointer rounded-lg bg-amber-400 px-4 py-2 text-xs font-bold text-black shadow-md hover:bg-amber-500"
-            >
-              + Add First Staff Member
-            </button>
+            {editable && (
+              <button
+                onClick={handleOpenAddModal}
+                className="cursor-pointer rounded-lg bg-amber-400 px-4 py-2 text-xs font-bold text-black shadow-md hover:bg-amber-500"
+              >
+                + Add First Staff Member
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -671,24 +688,28 @@ export default function StaffManagementPage() {
 
                       {/* Actions */}
                       <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenEditModal(staff)}
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                            title="Edit Staff Member"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() =>
-                              setDeleteTarget({ id: staff.id, name: staff.name })
-                            }
-                            className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                            title="Delete Staff Member"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        {editable ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditModal(staff)}
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
+                              title="Edit Staff Member"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                setDeleteTarget({ id: staff.id, name: staff.name })
+                              }
+                              className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
+                              title="Delete Staff Member"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 text-xs italic">View only</span>
+                        )}
                       </td>
                     </tr>
                   );
