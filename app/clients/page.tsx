@@ -756,6 +756,10 @@ export default function ClientsPage() {
     (c) => getClientPlanStatus(c, clientPlansMap[c.id] || []).status === "Expired"
   ).length;
 
+  const noPlanCount = clients.filter(
+    (c) => getClientPlanStatus(c, clientPlansMap[c.id] || []).status === "No Plan"
+  ).length;
+
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
@@ -776,7 +780,14 @@ export default function ClientsPage() {
 
       {/* Top Stat Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+        <div
+          onClick={() => setPlanStatusFilter("all")}
+          className={`cursor-pointer flex flex-col justify-between rounded-xl border p-4.5 shadow-xs transition-all ${
+            planStatusFilter === "all"
+              ? "border-amber-400 bg-amber-400/5 ring-2 ring-amber-400/30 dark:bg-amber-400/10"
+              : "border-zinc-200 bg-white hover:border-amber-300 dark:border-zinc-800 dark:bg-zinc-900"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
               Total Members
@@ -795,7 +806,14 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col justify-between rounded-xl border border-emerald-200 bg-emerald-50/40 p-4.5 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
+        <div
+          onClick={() => setPlanStatusFilter("ongoing")}
+          className={`cursor-pointer flex flex-col justify-between rounded-xl border p-4.5 shadow-xs transition-all ${
+            planStatusFilter === "ongoing"
+              ? "border-emerald-500 bg-emerald-100/60 ring-2 ring-emerald-500/30 dark:bg-emerald-950/40"
+              : "border-emerald-200 bg-emerald-50/40 hover:border-emerald-400 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
               Ongoing Plans
@@ -814,7 +832,14 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col justify-between rounded-xl border border-red-200 bg-red-50/40 p-4.5 shadow-xs dark:border-red-900/40 dark:bg-red-950/20">
+        <div
+          onClick={() => setPlanStatusFilter("expired")}
+          className={`cursor-pointer flex flex-col justify-between rounded-xl border p-4.5 shadow-xs transition-all ${
+            planStatusFilter === "expired"
+              ? "border-red-500 bg-red-100/60 ring-2 ring-red-500/30 dark:bg-red-950/40"
+              : "border-red-200 bg-red-50/40 hover:border-red-400 dark:border-red-900/40 dark:bg-red-950/20"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-red-800 dark:text-red-300">
               Expired Plans
@@ -853,6 +878,172 @@ export default function ClientsPage() {
 
       {/* Main Table Container */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+        {/* Search & Filter Toolbar Header */}
+        <div className="flex flex-col gap-3.5 border-b border-zinc-200 p-4 dark:border-zinc-800 lg:flex-row lg:items-center lg:justify-between">
+          {/* Plan Status Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setPlanStatusFilter("all")}
+              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                planStatusFilter === "all"
+                  ? "bg-amber-400 text-black shadow-xs font-bold"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              }`}
+            >
+              <span>All Members</span>
+              <span
+                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
+                  planStatusFilter === "all"
+                    ? "bg-black/15 text-black"
+                    : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
+                }`}
+              >
+                {clients.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setPlanStatusFilter("ongoing")}
+              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                planStatusFilter === "ongoing"
+                  ? "bg-emerald-500 text-white shadow-xs font-bold"
+                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Ongoing Plans</span>
+              <span
+                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
+                  planStatusFilter === "ongoing"
+                    ? "bg-black/20 text-white"
+                    : "bg-emerald-200/70 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200"
+                }`}
+              >
+                {ongoingCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setPlanStatusFilter("expired")}
+              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                planStatusFilter === "expired"
+                  ? "bg-red-500 text-white shadow-xs font-bold"
+                  : "bg-red-50 text-red-800 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+              <span>Expired Plans</span>
+              <span
+                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
+                  planStatusFilter === "expired"
+                    ? "bg-black/20 text-white"
+                    : "bg-red-200/70 text-red-900 dark:bg-red-900/60 dark:text-red-200"
+                }`}
+              >
+                {expiredCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setPlanStatusFilter("no_plan")}
+              className={`cursor-pointer flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                planStatusFilter === "no_plan"
+                  ? "bg-zinc-700 text-white shadow-xs font-bold dark:bg-zinc-600"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              }`}
+            >
+              <span>No Plan</span>
+              <span
+                className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
+                  planStatusFilter === "no_plan"
+                    ? "bg-black/20 text-white"
+                    : "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400"
+                }`}
+              >
+                {noPlanCount}
+              </span>
+            </button>
+          </div>
+
+          {/* Search Input & Secondary Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input */}
+            <div className="relative min-w-[220px] flex-1 sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search member, phone, plan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-8.5 pr-8 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="cursor-pointer absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  title="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Plan Type Dropdown Filter */}
+            <div className="relative">
+              <select
+                value={planTypeFilter}
+                onChange={(e) => setPlanTypeFilter(e.target.value)}
+                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-medium text-zinc-700 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-amber-400"
+              >
+                <option value="all">All Plan Types</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Gym Outlet Dropdown Filter */}
+            <div className="relative">
+              <select
+                value={outletFilter}
+                onChange={(e) => setOutletFilter(e.target.value)}
+                className="cursor-pointer h-9 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-medium text-zinc-700 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-amber-400"
+              >
+                <option value="all">All Outlets</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear All Filters Button */}
+            {(searchQuery ||
+              planStatusFilter !== "all" ||
+              planTypeFilter !== "all" ||
+              outletFilter !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setPlanStatusFilter("all");
+                  setPlanTypeFilter("all");
+                  setOutletFilter("all");
+                }}
+                className="cursor-pointer flex h-9 items-center gap-1 rounded-lg border border-dashed border-red-300 bg-red-50/50 px-2.5 text-xs font-semibold text-red-600 hover:bg-red-100/60 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 transition-colors"
+                title="Reset all filters"
+              >
+                <X className="h-3 w-3" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Content Section */}
         {loading ? (
           <div className="flex flex-col items-center justify-center p-12">
@@ -864,22 +1055,51 @@ export default function ClientsPage() {
         ) : filteredClients.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center">
             <div className="h-12 w-12 rounded-full bg-amber-400/10 flex items-center justify-center text-amber-500 mb-3 border border-amber-400/30">
-              <Users className="h-6 w-6" />
+              <Search className="h-6 w-6" />
             </div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              {searchQuery ? "No matching clients found" : "No Clients Registered Yet"}
+              {searchQuery ||
+              planStatusFilter !== "all" ||
+              planTypeFilter !== "all" ||
+              outletFilter !== "all"
+                ? "No matching clients found"
+                : "No Clients Registered Yet"}
             </h3>
             <p className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-5">
-              Click the Add Client button to register members with photo, GPS location, and plan assignment.
+              {searchQuery ||
+              planStatusFilter !== "all" ||
+              planTypeFilter !== "all" ||
+              outletFilter !== "all"
+                ? "Try adjusting your search query or reset the filters to see more members."
+                : "Click the Add Client button to register members with photo, GPS location, and plan assignment."}
             </p>
-            {editable && (
+            {searchQuery ||
+            planStatusFilter !== "all" ||
+            planTypeFilter !== "all" ||
+            outletFilter !== "all" ? (
               <button
-                onClick={handleOpenAddModal}
-                className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setPlanStatusFilter("all");
+                  setPlanTypeFilter("all");
+                  setOutletFilter("all");
+                }}
+                className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
               >
-                <Plus className="h-4 w-4" />
-                <span>Add Client Now</span>
+                <X className="h-3.5 w-3.5" />
+                <span>Reset All Filters</span>
               </button>
+            ) : (
+              editable && (
+                <button
+                  onClick={handleOpenAddModal}
+                  className="cursor-pointer flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black shadow-md hover:bg-amber-500 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Client Now</span>
+                </button>
+              )
             )}
           </div>
         ) : (
