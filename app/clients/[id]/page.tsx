@@ -172,7 +172,7 @@ function computeEndDate(startDateStr: string, months: number): string {
 }
 
 function getPlanExpiryInfo(endDateStr?: string) {
-  if (!endDateStr) return { isExpired: false, badgeText: "Active", daysText: "Ongoing" };
+  if (!endDateStr) return { isExpired: false, badgeText: "Ongoing", daysText: "Ongoing Plan" };
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const end = new Date(endDateStr);
@@ -188,13 +188,13 @@ function getPlanExpiryInfo(endDateStr?: string) {
   } else if (diffDays === 0) {
     return {
       isExpired: false,
-      badgeText: "Expires Today",
+      badgeText: "Ongoing",
       daysText: "Expires Today",
     };
   } else {
     return {
       isExpired: false,
-      badgeText: "Active",
+      badgeText: "Ongoing",
       daysText: `${diffDays} days remaining`,
     };
   }
@@ -792,6 +792,15 @@ export default function ClientDetailPage() {
           createdAt: serverTimestamp(),
         });
       }
+
+      // Update parent client document
+      await updateDoc(doc(db, "clients", clientId), {
+        planName: planName.trim(),
+        planStartDate: planStartDate,
+        planEndDate: planEndDate || computeEndDate(planStartDate, parseInt(planDurationMonths) || 1),
+        updatedAt: serverTimestamp(),
+      });
+
       setIsAssignPlanModalOpen(false);
     } catch (err) {
       console.error("Error saving plan:", err);
@@ -2149,15 +2158,25 @@ export default function ClientDetailPage() {
                               {(() => {
                                 const exp = getPlanExpiryInfo(plan.endDate || computeEndDate(plan.startDate, plan.durationMonths));
                                 return (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                      !exp.isExpired
-                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                                        : "bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800"
-                                    }`}
-                                  >
-                                    {exp.badgeText} • {exp.daysText}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                        !exp.isExpired
+                                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                          : "bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`h-1.5 w-1.5 rounded-full ${
+                                          !exp.isExpired ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                                        }`}
+                                      />
+                                      {exp.badgeText}
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                                      ({exp.daysText})
+                                    </span>
+                                  </div>
                                 );
                               })()}
                             </div>

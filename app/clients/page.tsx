@@ -15,6 +15,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  collectionGroup,
 } from "firebase/firestore";
 import {
   Users,
@@ -39,6 +40,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  CreditCard,
+  IndianRupee,
+  Filter,
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -65,12 +70,85 @@ interface ClientMember {
   address: string;
   planId: string;
   planName: string;
+  planStartDate?: string;
+  planEndDate?: string;
   outletId: string;
   outletName: string;
   latitude?: number | null;
   longitude?: number | null;
   photoUrl?: string;
   createdAt?: any;
+}
+
+interface AssignedPlanDoc {
+  id: string;
+  clientId: string;
+  planName: string;
+  startDate: string;
+  endDate?: string;
+  totalAmount?: number;
+  durationMonths?: number;
+}
+
+function computeEndDate(startDateStr: string, months: number): string {
+  try {
+    const d = new Date(startDateStr);
+    if (isNaN(d.getTime())) return startDateStr;
+    d.setMonth(d.getMonth() + (months || 1));
+    return d.toISOString().split("T")[0];
+  } catch {
+    return startDateStr;
+  }
+}
+
+function getClientPlanStatus(client: ClientMember, assignedPlans: AssignedPlanDoc[]) {
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  if (!assignedPlans || assignedPlans.length === 0) {
+    if (client.planEndDate) {
+      const isExpired = client.planEndDate < todayStr;
+      return {
+        status: isExpired ? ("Expired" as const) : ("Ongoing" as const),
+        endDate: client.planEndDate,
+        planName: client.planName || "Membership",
+      };
+    }
+    return {
+      status: "No Plan" as const,
+      endDate: null,
+      planName: client.planName || "No Plan",
+    };
+  }
+
+  // Find any ongoing plan (endDate >= todayStr)
+  const ongoingPlan = assignedPlans.find((p) => {
+    const end = p.endDate || computeEndDate(p.startDate, p.durationMonths || 1);
+    return end >= todayStr;
+  });
+
+  if (ongoingPlan) {
+    const end = ongoingPlan.endDate || computeEndDate(ongoingPlan.startDate, ongoingPlan.durationMonths || 1);
+    return {
+      status: "Ongoing" as const,
+      endDate: end,
+      planName: ongoingPlan.planName,
+    };
+  }
+
+  // All plans are expired - pick the latest one
+  const sortedPlans = [...assignedPlans].sort((a, b) => {
+    const endA = a.endDate || computeEndDate(a.startDate, a.durationMonths || 1);
+    const endB = b.endDate || computeEndDate(b.startDate, b.durationMonths || 1);
+    return endB.localeCompare(endA);
+  });
+  const latestPlan = sortedPlans[0];
+  const end = latestPlan.endDate || computeEndDate(latestPlan.startDate, latestPlan.durationMonths || 1);
+
+  return {
+    status: "Expired" as const,
+    endDate: end,
+    planName: latestPlan.planName,
+  };
 }
 
 export default function ClientsPage() {
@@ -95,6 +173,27 @@ export default function ClientsPage() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [selectedOutletId, setSelectedOutletId] = useState("");
 
+  // Plan & Payment State for Client Registration
+  const [planAmount, setPlanAmount] = useState("");
+  const [planDiscount, setPlanDiscount] = useState("0");
+  const [receivedAmount, setReceivedAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [planStartDate, setPlanStartDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [planDurationMonths, setPlanDurationMonths] = useState("1");
+  const [planEndDate, setPlanEndDate] = useState(
+    computeEndDate(new Date().toISOString().split("T")[0], 1)
+  );
+
+  // Client Plans Map for live Ongoing vs Expired status detection
+  const [clientPlansMap, setClientPlansMap] = useState<Record<string, AssignedPlanDoc[]>>({});
+
+  // Filters for Clients List
+  const [planStatusFilter, setPlanStatusFilter] = useState<"all" | "ongoing" | "expired" | "no_plan">("all");
+  const [planTypeFilter, setPlanTypeFilter] = useState("all");
+  const [outletFilter, setOutletFilter] = useState("all");
+
   // GPS State
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -114,9 +213,9 @@ export default function ClientsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, planStatusFilter, planTypeFilter, outletFilter]);
 
-  // Real-time Firestore Listeners (clients, plans, outlets)
+  // Real-time Firestore Listeners (clients, plans, outlets, assigned_plans)
   useEffect(() => {
     // Listen to Plans
     const plansUnsub = onSnapshot(collection(db, "plans"), (snapshot) => {
@@ -141,6 +240,35 @@ export default function ClientsPage() {
         setSelectedOutletId(fetchedOutlets[0].id);
       }
     });
+
+    // Listen to all Assigned Plans across all clients
+    let assignedPlansUnsub = () => {};
+    try {
+      const plansQuery = collectionGroup(db, "assigned_plans");
+      assignedPlansUnsub = onSnapshot(
+        plansQuery,
+        (snapshot) => {
+          const map: Record<string, AssignedPlanDoc[]> = {};
+          snapshot.docs.forEach((docSnap) => {
+            const parentClientId = docSnap.ref.parent.parent?.id;
+            if (parentClientId) {
+              if (!map[parentClientId]) map[parentClientId] = [];
+              map[parentClientId].push({
+                id: docSnap.id,
+                clientId: parentClientId,
+                ...(docSnap.data() as any),
+              });
+            }
+          });
+          setClientPlansMap(map);
+        },
+        (err) => {
+          console.warn("assigned_plans collectionGroup listener fallback:", err);
+        }
+      );
+    } catch (err) {
+      console.warn("assigned_plans collectionGroup setup error:", err);
+    }
 
     // Listen to Clients
     const clientsRef = collection(db, "clients");
@@ -171,10 +299,67 @@ export default function ClientsPage() {
     return () => {
       plansUnsub();
       outletsUnsub();
+      assignedPlansUnsub();
       clientsUnsub();
       stopCamera();
     };
   }, []);
+
+  // Plan field change handlers for Add Client modal
+  const handlePlanSelect = (newPlanId: string) => {
+    setSelectedPlanId(newPlanId);
+    const found = plans.find((p) => p.id === newPlanId);
+    if (found) {
+      const amt = (found.amount || 0).toString();
+      setPlanAmount(amt);
+      setPlanDiscount("0");
+      setReceivedAmount(amt);
+      let months = 1;
+      if (found.duration) {
+        const match = found.duration.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (found.duration.toLowerCase().includes("year")) months = months * 12;
+        }
+      } else if (found.name) {
+        const match = found.name.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (found.name.toLowerCase().includes("year")) months = months * 12;
+        }
+      }
+      setPlanDurationMonths(months.toString());
+      setPlanEndDate(computeEndDate(planStartDate, months));
+    }
+  };
+
+  const handlePlanAmountChange = (val: string) => {
+    setPlanAmount(val);
+    const base = parseFloat(val) || 0;
+    const disc = parseFloat(planDiscount) || 0;
+    const finalTot = Math.max(0, base - disc);
+    setReceivedAmount(finalTot.toString());
+  };
+
+  const handlePlanDiscountChange = (val: string) => {
+    setPlanDiscount(val);
+    const base = parseFloat(planAmount) || 0;
+    const disc = parseFloat(val) || 0;
+    const finalTot = Math.max(0, base - disc);
+    setReceivedAmount(finalTot.toString());
+  };
+
+  const handlePlanStartDateChange = (val: string) => {
+    setPlanStartDate(val);
+    const months = parseInt(planDurationMonths) || 1;
+    setPlanEndDate(computeEndDate(val, months));
+  };
+
+  const handlePlanDurationChange = (monthsStr: string) => {
+    setPlanDurationMonths(monthsStr);
+    const months = parseInt(monthsStr) || 1;
+    setPlanEndDate(computeEndDate(planStartDate, months));
+  };
 
   // Ensure camera stream is attached when video DOM element mounts
   useEffect(() => {
@@ -198,7 +383,7 @@ export default function ClientsPage() {
       (p) => !p.outletId || p.outletId === "all" || p.outletId === newOutletId
     );
     if (validPlans.length > 0 && !validPlans.some((p) => p.id === selectedPlanId)) {
-      setSelectedPlanId(validPlans[0].id);
+      handlePlanSelect(validPlans[0].id);
     }
   };
 
@@ -214,11 +399,43 @@ export default function ClientsPage() {
     const validPlans = plans.filter(
       (p) => !p.outletId || p.outletId === "all" || p.outletId === initialOutletId
     );
-    if (validPlans.length > 0) {
-      setSelectedPlanId(validPlans[0].id);
-    } else if (plans.length > 0) {
-      setSelectedPlanId(plans[0].id);
+    const chosenPlan = validPlans.length > 0 ? validPlans[0] : (plans.length > 0 ? plans[0] : null);
+    const chosenPlanId = chosenPlan ? chosenPlan.id : "";
+    setSelectedPlanId(chosenPlanId);
+
+    const today = new Date().toISOString().split("T")[0];
+    setPlanStartDate(today);
+
+    if (chosenPlan) {
+      const amt = (chosenPlan.amount || 0).toString();
+      setPlanAmount(amt);
+      setPlanDiscount("0");
+      setReceivedAmount(amt);
+      let months = 1;
+      if (chosenPlan.duration) {
+        const match = chosenPlan.duration.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (chosenPlan.duration.toLowerCase().includes("year")) months = months * 12;
+        }
+      } else if (chosenPlan.name) {
+        const match = chosenPlan.name.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (chosenPlan.name.toLowerCase().includes("year")) months = months * 12;
+        }
+      }
+      setPlanDurationMonths(months.toString());
+      setPlanEndDate(computeEndDate(today, months));
+    } else {
+      setPlanAmount("0");
+      setPlanDiscount("0");
+      setReceivedAmount("0");
+      setPlanDurationMonths("1");
+      setPlanEndDate(computeEndDate(today, 1));
     }
+    setPaymentMethod("Cash");
+
     setLatitude(null);
     setLongitude(null);
     setGpsError("");
@@ -345,8 +562,23 @@ export default function ClientsPage() {
   // Save or Update Client
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !mobile.trim() || !address.trim()) {
+    const trimmedName = name.trim();
+    const trimmedMobile = mobile.trim();
+    const trimmedAddress = address.trim();
+
+    if (!trimmedName || !trimmedMobile || !trimmedAddress) {
       alert("Please fill in all required fields (Name, Mobile, Address)");
+      return;
+    }
+
+    // 1. DUPLICATE MOBILE CHECK: Verify if mobile number already exists in database
+    const existingClient = clients.find(
+      (c) => c.mobile.trim() === trimmedMobile && c.id !== editingId
+    );
+    if (existingClient) {
+      alert(
+        `A client with mobile number "${trimmedMobile}" is already registered (${existingClient.name})!\n\nPlease enter a unique mobile number.`
+      );
       return;
     }
 
@@ -358,7 +590,7 @@ export default function ClientsPage() {
       if (capturedPhoto && capturedPhoto.startsWith("data:image")) {
         const formData = new FormData();
         formData.append("file", capturedPhoto);
-        formData.append("fileName", `client_${name.replace(/\s+/g, "_")}_${Date.now()}.jpg`);
+        formData.append("fileName", `client_${trimmedName.replace(/\s+/g, "_")}_${Date.now()}.jpg`);
 
         const uploadRes = await fetch("/api/upload-image", {
           method: "POST",
@@ -374,13 +606,17 @@ export default function ClientsPage() {
       const matchedPlan = plans.find((p) => p.id === selectedPlanId);
       const matchedOutlet = outlets.find((o) => o.id === selectedOutletId);
 
+      const computedEnd = planEndDate || computeEndDate(planStartDate, parseInt(planDurationMonths) || 1);
+
       const clientData = {
-        name: name.trim(),
-        mobile: mobile.trim(),
+        name: trimmedName,
+        mobile: trimmedMobile,
         email: email.trim() || null,
-        address: address.trim(),
+        address: trimmedAddress,
         planId: selectedPlanId,
         planName: matchedPlan?.name || "General Membership",
+        planStartDate: planStartDate,
+        planEndDate: computedEnd,
         outletId: selectedOutletId,
         outletName: matchedOutlet?.name || "Main Branch",
         latitude: latitude || null,
@@ -393,11 +629,50 @@ export default function ClientsPage() {
         // Update Existing Client
         await updateDoc(doc(db, "clients", editingId), clientData);
       } else {
-        // Add New Client
-        await addDoc(collection(db, "clients"), {
+        // Add New Client Doc
+        const newClientDocRef = await addDoc(collection(db, "clients"), {
           ...clientData,
           createdAt: serverTimestamp(),
         });
+        const newClientId = newClientDocRef.id;
+
+        // Save Assigned Plan in subcollection `clients/{newClientId}/assigned_plans`
+        const baseAmt = parseFloat(planAmount) || (matchedPlan?.amount || 0);
+        const discAmt = parseFloat(planDiscount) || 0;
+        const finalTot = Math.max(0, baseAmt - discAmt);
+        const durMonths = parseInt(planDurationMonths) || 1;
+
+        const assignedPlanRef = await addDoc(
+          collection(db, "clients", newClientId, "assigned_plans"),
+          {
+            planName: matchedPlan?.name || "General Membership",
+            basePrice: baseAmt,
+            discount: discAmt,
+            totalAmount: finalTot,
+            durationMonths: durMonths,
+            startDate: planStartDate,
+            endDate: computedEnd,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }
+        );
+
+        // Save Initial Payment in subcollection `clients/{newClientId}/installments` if receivedAmount > 0
+        const recAmt = parseFloat(receivedAmount) || 0;
+        if (recAmt > 0) {
+          await addDoc(
+            collection(db, "clients", newClientId, "installments"),
+            {
+              assignedPlanId: assignedPlanRef.id,
+              amount: recAmt,
+              date: planStartDate,
+              mode: paymentMethod || "Cash",
+              status: "Paid",
+              note: "Initial registration payment",
+              createdAt: serverTimestamp(),
+            }
+          );
+        }
       }
 
       handleCloseModal();
@@ -441,12 +716,45 @@ export default function ClientsPage() {
     (p) => !p.outletId || p.outletId === "all" || p.outletId === selectedOutletId
   );
 
-  const filteredClients = clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.mobile.includes(searchQuery) ||
-      c.outletName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClients = clients.filter((client) => {
+    const matchSearch =
+      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.mobile.includes(searchQuery) ||
+      client.outletName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (client.planName && client.planName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (client.address && client.address.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchSearch) return false;
+
+    // Outlet Filter
+    if (outletFilter !== "all" && client.outletId !== outletFilter) {
+      return false;
+    }
+
+    const planInfo = getClientPlanStatus(client, clientPlansMap[client.id] || []);
+
+    // Plan Status Filter
+    if (planStatusFilter === "ongoing" && planInfo.status !== "Ongoing") return false;
+    if (planStatusFilter === "expired" && planInfo.status !== "Expired") return false;
+    if (planStatusFilter === "no_plan" && planInfo.status !== "No Plan") return false;
+
+    // Plan Type Filter
+    if (planTypeFilter !== "all") {
+      const matchId = client.planId === planTypeFilter;
+      const matchName = planInfo.planName.toLowerCase() === planTypeFilter.toLowerCase();
+      if (!matchId && !matchName) return false;
+    }
+
+    return true;
+  });
+
+  const ongoingCount = clients.filter(
+    (c) => getClientPlanStatus(c, clientPlansMap[c.id] || []).status === "Ongoing"
+  ).length;
+
+  const expiredCount = clients.filter(
+    (c) => getClientPlanStatus(c, clientPlansMap[c.id] || []).status === "Expired"
+  ).length;
 
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -467,7 +775,7 @@ export default function ClientsPage() {
       )}
 
       {/* Top Stat Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
@@ -481,27 +789,46 @@ export default function ClientsPage() {
             <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
               {clients.length}
             </span>
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
               Registered
             </span>
           </div>
         </div>
 
-        <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4.5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col justify-between rounded-xl border border-emerald-200 bg-emerald-50/40 p-4.5 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Active Plans
+            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+              Ongoing Plans
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400/10 text-amber-600 dark:text-amber-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
               <UserCheck className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-              {plans.length}
+            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+              {ongoingCount}
             </span>
-            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-              Available Tiers
+            <span className="text-xs font-semibold text-emerald-600">
+              Active Members
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-between rounded-xl border border-red-200 bg-red-50/40 p-4.5 shadow-xs dark:border-red-900/40 dark:bg-red-950/20">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-red-800 dark:text-red-300">
+              Expired Plans
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/20 text-red-700 dark:text-red-400">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline justify-between">
+            <span className="text-2xl font-bold text-red-700 dark:text-red-400">
+              {expiredCount}
+            </span>
+            <span className="text-xs font-semibold text-red-600">
+              Plan Expired
             </span>
           </div>
         </div>
@@ -526,31 +853,6 @@ export default function ClientsPage() {
 
       {/* Main Table Container */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
-        {/* Header Search Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 px-5 py-3 gap-3 dark:border-zinc-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-              Gym Clients List
-            </span>
-            <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-400/30">
-              {clients.length} Total
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search name, phone, outlet..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8.5 w-56 rounded-lg border border-zinc-200 bg-zinc-50 pl-8 pr-3 text-xs font-medium outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:focus:border-amber-400"
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Content Section */}
         {loading ? (
           <div className="flex flex-col items-center justify-center p-12">
@@ -605,10 +907,34 @@ export default function ClientsPage() {
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30 shrink-0">
-                      <Layers className="h-3 w-3" />
-                      {client.planName}
-                    </span>
+                    {(() => {
+                      const planInfo = getClientPlanStatus(client, clientPlansMap[client.id] || []);
+                      return (
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                            <Layers className="h-3 w-3" />
+                            {planInfo.planName}
+                          </span>
+                          {planInfo.status === "Ongoing" && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Ongoing
+                            </span>
+                          )}
+                          {planInfo.status === "Expired" && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                              Expired
+                            </span>
+                          )}
+                          {planInfo.status === "No Plan" && (
+                            <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                              No Plan
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
@@ -676,7 +1002,7 @@ export default function ClientsPage() {
                   <tr>
                     <th className="px-5 py-3 font-semibold">Client</th>
                     <th className="px-5 py-3 font-semibold">Mobile & Email</th>
-                    <th className="px-5 py-3 font-semibold">Assigned Plan</th>
+                    <th className="px-5 py-3 font-semibold">Assigned Plan & Status</th>
                     <th className="px-5 py-3 font-semibold">Gym Outlet</th>
                     <th className="px-5 py-3 font-semibold">GPS Coordinates</th>
                     <th className="px-5 py-3 font-semibold text-right">Actions</th>
@@ -727,10 +1053,41 @@ export default function ClientsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
-                          <Layers className="h-3 w-3" />
-                          {client.planName}
-                        </span>
+                        {(() => {
+                          const planInfo = getClientPlanStatus(client, clientPlansMap[client.id] || []);
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/20 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                                  <Layers className="h-3 w-3" />
+                                  {planInfo.planName}
+                                </span>
+                                {planInfo.status === "Ongoing" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Ongoing
+                                  </span>
+                                )}
+                                {planInfo.status === "Expired" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                    Expired
+                                  </span>
+                                )}
+                                {planInfo.status === "No Plan" && (
+                                  <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                                    No Plan
+                                  </span>
+                                )}
+                              </div>
+                              {planInfo.endDate && (
+                                <span className="text-[10px] text-zinc-400 font-medium">
+                                  Valid till: <strong className="text-zinc-600 dark:text-zinc-300">{planInfo.endDate}</strong>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
@@ -1027,7 +1384,13 @@ export default function ClientsPage() {
                   <select
                     required
                     value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                    onChange={(e) => {
+                      if (!editingId) {
+                        handlePlanSelect(e.target.value);
+                      } else {
+                        setSelectedPlanId(e.target.value);
+                      }
+                    }}
                     className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
                   >
                     {availablePlans.length === 0 ? (
@@ -1042,6 +1405,140 @@ export default function ClientsPage() {
                   </select>
                 </div>
               </div>
+
+              {/* If creating new client, show Plan Amount, Received Amount, Payment Method, Dates */}
+              {!editingId && (
+                <div className="rounded-xl border border-amber-300/60 bg-amber-50/50 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-200/60 pb-2 dark:border-amber-900/30">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-300">
+                      <IndianRupee className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <span>Plan Pricing & Initial Payment</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                      Auto-creates assigned plan & receipt
+                    </span>
+                  </div>
+
+                  {/* Plan Amount & Discount */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Plan Amount (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={planAmount}
+                        onChange={(e) => handlePlanAmountChange(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Discount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={planDiscount}
+                        onChange={(e) => handlePlanDiscountChange(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Total Payable (₹)
+                      </label>
+                      <div className="h-8.5 w-full rounded-lg border border-zinc-200 bg-zinc-100 px-2.5 flex items-center text-xs font-bold text-zinc-900 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100">
+                        ₹{Math.max(0, (parseFloat(planAmount) || 0) - (parseFloat(planDiscount) || 0))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Received Amount & Payment Method */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Received Amount (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={receivedAmount}
+                        onChange={(e) => setReceivedAmount(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-semibold text-green-700 dark:text-green-400 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Payment Method <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="cursor-pointer h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Card">Card</option>
+                        <option value="Net Banking">Net Banking</option>
+                        <option value="Cheque">Cheque</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Start Date, Duration (Months), End Date */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Start Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={planStartDate}
+                        onChange={(e) => handlePlanStartDateChange(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        Duration (Months)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={planDurationMonths}
+                        onChange={(e) => handlePlanDurationChange(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                        placeholder="1"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                        End Date (Expiry)
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={planEndDate}
+                        onChange={(e) => setPlanEndDate(e.target.value)}
+                        className="h-8.5 w-full rounded-lg border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* GPS Geolocation Section */}
               <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-800/40">
