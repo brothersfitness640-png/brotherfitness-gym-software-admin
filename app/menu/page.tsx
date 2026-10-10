@@ -20,6 +20,7 @@ import {
   Globe,
   LogOut,
   PhoneCall,
+  Dumbbell,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -44,6 +45,13 @@ const MENU_CARDS = [
     href: "/clients",
     icon: Users,
     color: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+  },
+  {
+    title: "Personal Trainers",
+    subtitle: "Instructors directory & assignments",
+    href: "/personal-trainers",
+    icon: Dumbbell,
+    color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
   },
   {
     title: "Visitors & Inquiries",

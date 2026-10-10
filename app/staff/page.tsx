@@ -47,6 +47,7 @@ import {
   HelpCircle,
   Settings,
   QrCode,
+  Dumbbell,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -73,6 +74,7 @@ export const SYSTEM_MODULES = [
   { path: "/outlets", label: "Gym Outlets", icon: Building2 },
   { path: "/outlets-qr", label: "Outlets QR Code", icon: QrCode },
   { path: "/clients", label: "Clients Directory", icon: Users },
+  { path: "/personal-trainers", label: "Personal Trainers", icon: Dumbbell },
   { path: "/visitors", label: "Visitors & Inquiries", icon: UserPlus },
   { path: "/client-attendance", label: "Client Attendance", icon: CalendarCheck },
   { path: "/plans", label: "Membership Plans", icon: Layers },

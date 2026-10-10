@@ -19,6 +19,7 @@ import {
   HelpCircle,
   LogOut,
   UserCog,
+  Dumbbell,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -42,6 +43,11 @@ export const ALL_NAVIGATION_ITEMS = [
     name: "Clients",
     href: "/clients",
     icon: Users,
+  },
+  {
+    name: "Personal Trainers",
+    href: "/personal-trainers",
+    icon: Dumbbell,
   },
   {
     name: "Visitors",

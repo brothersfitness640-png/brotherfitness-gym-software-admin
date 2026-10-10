@@ -93,11 +93,23 @@ interface InstallmentRecord {
   note?: string;
 }
 
-interface TrainerRecord {
+interface PersonalTrainerItem {
   id: string;
   name: string;
-  type: "Personal" | "General";
+  mobile: string;
+  email?: string;
+}
+
+interface TrainerRecord {
+  id: string;
+  trainerId?: string;
+  name: string;
+  mobile?: string;
+  email?: string;
+  type?: string;
   notes?: string;
+  assignedAt?: any;
+  createdAt?: any;
 }
 
 interface DietFoodItem {
@@ -458,11 +470,9 @@ export default function ClientDetailPage() {
 
   // Tab 3: Trainers State
   const [trainers, setTrainers] = useState<TrainerRecord[]>([]);
+  const [availableTrainers, setAvailableTrainers] = useState<PersonalTrainerItem[]>([]);
   const [isTrainerModalOpen, setIsTrainerModalOpen] = useState(false);
-  const [editingTrainerId, setEditingTrainerId] = useState<string | null>(null);
-  const [trainerName, setTrainerName] = useState("");
-  const [trainerType, setTrainerType] = useState<"Personal" | "General">("Personal");
-  const [trainerNotes, setTrainerNotes] = useState("");
+  const [selectedTrainerId, setSelectedTrainerId] = useState("");
 
   // Tab 4: Multi-Item Diet Suggestions State
   const [diets, setDiets] = useState<DietSuggestionRecord[]>([]);
@@ -578,7 +588,20 @@ export default function ClientDetailPage() {
     return () => unsub();
   }, [clientId]);
 
-  // 4. Fetch Trainers Subcollection
+  // 4. Fetch Available Personal Trainers
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "personal_trainers"), (snapshot) => {
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as PersonalTrainerItem[];
+      list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setAvailableTrainers(list);
+    });
+    return () => unsub();
+  }, []);
+
+  // 5. Fetch Client Trainers Subcollection (Latest Assignment on Top)
   useEffect(() => {
     if (!clientId) return;
     const unsub = onSnapshot(
@@ -588,6 +611,18 @@ export default function ClientDetailPage() {
           id: d.id,
           ...d.data(),
         })) as TrainerRecord[];
+        list.sort((a, b) => {
+          const getTime = (item: any) => {
+            const t = item.assignedAt || item.createdAt;
+            if (!t) return 0;
+            if (typeof t.toMillis === "function") return t.toMillis();
+            if (typeof t.seconds === "number") return t.seconds * 1000;
+            if (t instanceof Date) return t.getTime();
+            const parsed = new Date(t).getTime();
+            return isNaN(parsed) ? 0 : parsed;
+          };
+          return getTime(b) - getTime(a);
+        });
         setTrainers(list);
       }
     );
@@ -1005,45 +1040,33 @@ export default function ClientDetailPage() {
   };
 
   // --- TRAINER HANDLERS ---
-  const handleOpenTrainerModal = (t?: TrainerRecord) => {
+  const handleOpenTrainerModal = () => {
     if (!editable) return;
-    if (t) {
-      setEditingTrainerId(t.id);
-      setTrainerName(t.name);
-      setTrainerType(t.type);
-      setTrainerNotes(t.notes || "");
-    } else {
-      setEditingTrainerId(null);
-      setTrainerName("");
-      setTrainerType("Personal");
-      setTrainerNotes("");
-    }
+    setSelectedTrainerId(availableTrainers[0]?.id || "");
     setIsTrainerModalOpen(true);
   };
 
   const handleSaveTrainer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !trainerName.trim() || !editable) return;
+    if (!clientId || !selectedTrainerId || !editable) return;
+    const trainerObj = availableTrainers.find((t) => t.id === selectedTrainerId);
+    if (!trainerObj) {
+      alert("Please select a personal trainer.");
+      return;
+    }
     setSaving(true);
     try {
-      const tData = {
-        name: trainerName.trim(),
-        type: trainerType,
-        notes: trainerNotes.trim(),
-        updatedAt: serverTimestamp(),
-      };
-      if (editingTrainerId) {
-        await updateDoc(
-          doc(db, "clients", clientId, "trainers", editingTrainerId),
-          tData
-        );
-      } else {
-        await addDoc(collection(db, "clients", clientId, "trainers"), {
-          ...tData,
-          createdAt: serverTimestamp(),
-        });
-      }
+      await addDoc(collection(db, "clients", clientId, "trainers"), {
+        trainerId: trainerObj.id,
+        name: trainerObj.name,
+        mobile: trainerObj.mobile || "",
+        email: trainerObj.email || "",
+        type: "Personal",
+        assignedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
       setIsTrainerModalOpen(false);
+      setSelectedTrainerId("");
     } catch (err) {
       console.error("Error saving trainer:", err);
       alert("Failed to assign trainer.");
@@ -2380,13 +2403,19 @@ export default function ClientDetailPage() {
       {activeTab === "trainers" && (
         <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Assigned Gym Trainers
-            </h3>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Dumbbell className="h-4 w-4 text-amber-500" />
+                Assigned Personal Trainers
+              </h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                History of trainers assigned to this client (latest assignment on top)
+              </p>
+            </div>
             {editable && (
               <button
                 onClick={() => handleOpenTrainerModal()}
-                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500"
+                className="cursor-pointer flex h-8 items-center gap-1.5 rounded-lg bg-amber-400 px-3 text-xs font-semibold text-black hover:bg-amber-500 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Assign Trainer</span>
@@ -2396,57 +2425,110 @@ export default function ClientDetailPage() {
 
           {trainers.length === 0 ? (
             <div className="p-10 text-center flex flex-col items-center">
-              <UserCheck className="h-8 w-8 text-zinc-400 mb-2" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 mb-2">
+                <Dumbbell className="h-6 w-6" />
+              </div>
               <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                 No Trainer Assigned Yet
               </h4>
-              <p className="text-xs text-zinc-500 mt-1">
-                Assign a Personal or General trainer to this member.
+              <p className="text-xs text-zinc-500 mt-1 max-w-xs">
+                Click "Assign Trainer" above to assign an active personal trainer to this member.
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              {trainers.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400/20 text-amber-700 font-semibold">
-                      <Dumbbell className="h-5 w-5" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
-                        {t.name}
-                      </span>
-                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                        {t.type} Trainer
-                      </span>
-                    </div>
-                  </div>
+            <div className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800 p-4">
+              {trainers.map((t, idx) => {
+                const isLatest = idx === 0;
+                let assignedDateStr = "";
+                const rawDate = t.assignedAt || t.createdAt;
+                if (rawDate) {
+                  try {
+                    const d = typeof rawDate.toDate === "function" ? rawDate.toDate() : new Date(rawDate);
+                    assignedDateStr = d.toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  } catch {
+                    assignedDateStr = "";
+                  }
+                }
 
-                  {editable ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleOpenTrainerModal(t)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
-                        title="Edit Trainer"
+                return (
+                  <div
+                    key={t.id}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl transition-colors ${
+                      isLatest
+                        ? "bg-amber-500/5 border border-amber-500/20 my-1"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+                    }`}
+                  >
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-semibold ${
+                          isLatest
+                            ? "bg-amber-400 text-black shadow-xs"
+                            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        }`}
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTrainer(t.id, t.name)}
-                        className="cursor-pointer flex h-7.5 w-7.5 items-center justify-center rounded border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400"
-                        title="Delete Trainer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                        <Dumbbell className="h-5 w-5" />
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                            {t.name}
+                          </span>
+                          {isLatest && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              Current / Latest
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                          {t.mobile && (
+                            <a
+                              href={`tel:${t.mobile}`}
+                              className="flex items-center gap-1 hover:text-amber-600 transition-colors font-medium"
+                            >
+                              <Phone className="h-3 w-3 text-zinc-400" />
+                              <span>{t.mobile}</span>
+                            </a>
+                          )}
+                          {t.email && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3 w-3 text-zinc-400" />
+                              <span>{t.email}</span>
+                            </span>
+                          )}
+                          {assignedDateStr && (
+                            <span className="flex items-center gap-1 text-[11px] text-zinc-500">
+                              <Clock className="h-3 w-3 text-zinc-400" />
+                              <span>Assigned: {assignedDateStr}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <span className="text-zinc-400 text-xs italic">View only</span>
-                  )}
-                </div>
-              ))}
+
+                    {editable ? (
+                      <div className="flex items-center gap-1.5 self-end sm:self-center">
+                        <button
+                          onClick={() => handleDeleteTrainer(t.id, t.name)}
+                          className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:bg-zinc-900 dark:text-red-400 transition-colors"
+                          title="Unassign Trainer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-zinc-400 text-xs italic">View only</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -3381,60 +3463,65 @@ export default function ClientDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                {editingTrainerId ? "Edit Trainer Assignment" : "Assign Trainer"}
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Dumbbell className="h-4 w-4 text-amber-500" />
+                Assign Personal Trainer
               </h3>
               <button
                 onClick={() => setIsTrainerModalOpen(false)}
-                className="cursor-pointer text-zinc-400 hover:text-zinc-600"
+                className="cursor-pointer text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveTrainer} className="mt-4 flex flex-col gap-3">
+            <form onSubmit={handleSaveTrainer} className="mt-4 flex flex-col gap-4">
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Trainer Name
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  Select Personal Trainer <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Vikram Singh"
-                  value={trainerName}
-                  onChange={(e) => setTrainerName(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
-                />
+                {availableTrainers.length === 0 ? (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-800 dark:text-amber-300">
+                    <p className="font-semibold">No personal trainers found</p>
+                    <p className="mt-0.5 text-zinc-600 dark:text-zinc-400">
+                      Please add trainers in the{" "}
+                      <Link href="/personal-trainers" className="text-amber-600 underline font-semibold">
+                        Personal Trainers
+                      </Link>{" "}
+                      page first.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    required
+                    value={selectedTrainerId}
+                    onChange={(e) => setSelectedTrainerId(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
+                  >
+                    <option value="">-- Choose Personal Trainer --</option>
+                    {availableTrainers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.mobile}){t.email ? ` • ${t.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Trainer Type
-                </label>
-                <select
-                  value={trainerType}
-                  onChange={(e) => setTrainerType(e.target.value as any)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-2 text-xs font-medium dark:bg-zinc-800"
-                >
-                  <option value="Personal">Personal Trainer</option>
-                  <option value="General">General Trainer</option>
-                </select>
-              </div>
-
-              <div className="mt-3 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <div className="mt-2 flex justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setIsTrainerModalOpen(false)}
-                  className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold text-zinc-600"
+                  className="cursor-pointer rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="cursor-pointer rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-black hover:bg-amber-500"
+                  disabled={saving || availableTrainers.length === 0 || !selectedTrainerId}
+                  className="cursor-pointer rounded-lg bg-amber-400 px-4 py-1.5 text-xs font-semibold text-black hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Trainer
+                  {saving ? "Saving..." : "Save Trainer"}
                 </button>
               </div>
             </form>
