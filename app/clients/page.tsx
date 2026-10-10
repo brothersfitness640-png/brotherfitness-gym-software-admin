@@ -31,6 +31,8 @@ import {
   Trash2,
   Edit2,
   Eye,
+  EyeOff,
+  KeyRound,
   X,
   CheckCircle2,
   Loader2,
@@ -77,6 +79,8 @@ interface ClientMember {
   latitude?: number | null;
   longitude?: number | null;
   photoUrl?: string;
+  mpin?: string;
+  mpinHash?: string;
   createdAt?: any;
 }
 
@@ -185,6 +189,8 @@ export default function ClientsPage() {
   // Form Fields State
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [mpin, setMpin] = useState("");
+  const [showMpin, setShowMpin] = useState(false);
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState("");
@@ -425,6 +431,8 @@ export default function ClientsPage() {
     setEditingId(null);
     setName("");
     setMobile("");
+    setMpin("");
+    setShowMpin(false);
     setEmail("");
     setAddress("");
     const initialOutletId = outlets.length > 0 ? outlets[0].id : "";
@@ -486,6 +494,8 @@ export default function ClientsPage() {
     setEditingId(client.id);
     setName(client.name);
     setMobile(client.mobile);
+    setMpin(client.mpin || "");
+    setShowMpin(false);
     setEmail(client.email || "");
     setAddress(client.address);
     setSelectedPlanId(client.planId || (plans.length > 0 ? plans[0].id : ""));
@@ -601,22 +611,20 @@ export default function ClientsPage() {
     const trimmedName = name.trim();
     const trimmedMobile = mobile.trim();
     const trimmedAddress = address.trim();
+    const trimmedMpin = mpin.trim();
 
     if (!trimmedName || !trimmedMobile || !trimmedAddress) {
       alert("Please fill in all required fields (Name, Mobile, Address)");
       return;
     }
 
-    // 1. DUPLICATE MOBILE CHECK: Verify if mobile number already exists in database
-    const existingClient = clients.find(
-      (c) => c.mobile.trim() === trimmedMobile && c.id !== editingId
-    );
-    if (existingClient) {
-      alert(
-        `A client with mobile number "${trimmedMobile}" is already registered (${existingClient.name})!\n\nPlease enter a unique mobile number.`
-      );
+    if (!trimmedMpin || !/^\d{4,6}$/.test(trimmedMpin)) {
+      alert("Please enter a valid 4 to 6 digit numeric MPIN for member login access.");
       return;
     }
+
+    // Note: Multiple clients can share the same mobile number (Family / shared numbers).
+    // Each client has a unique client document ID.
 
     // 2. SPLIT PAYMENT VALIDATION
     const recAmt = parseFloat(receivedAmount) || 0;
@@ -662,6 +670,7 @@ export default function ClientsPage() {
       const clientData = {
         name: trimmedName,
         mobile: trimmedMobile,
+        mpin: trimmedMpin,
         email: email.trim() || null,
         address: trimmedAddress,
         planId: selectedPlanId,
@@ -1149,14 +1158,22 @@ export default function ClientsPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-                    <a
-                      href={`tel:${client.mobile}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 hover:underline"
-                    >
-                      <Phone className="h-3.5 w-3.5" />
-                      {client.mobile}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${client.mobile}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        {client.mobile}
+                      </a>
+                      {client.mpin && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                          <KeyRound className="h-2.5 w-2.5" />
+                          PIN: {client.mpin}
+                        </span>
+                      )}
+                    </div>
 
                     <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                       <Building2 className="h-3 w-3 text-zinc-500" />
@@ -1251,10 +1268,18 @@ export default function ClientsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-zinc-800 dark:text-zinc-200 flex items-center gap-1">
-                            <Phone className="h-3 w-3 text-zinc-400" />
-                            {client.mobile}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-zinc-800 dark:text-zinc-200 flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-zinc-400" />
+                              {client.mobile}
+                            </span>
+                            {client.mpin && (
+                              <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/20 px-1.5 py-0.2 font-mono text-[10px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                                <KeyRound className="h-2.5 w-2.5" />
+                                PIN: {client.mpin}
+                              </span>
+                            )}
+                          </div>
                           {client.email && (
                             <span className="text-[11px] text-zinc-500 flex items-center gap-1">
                               <Mail className="h-3 w-3 text-zinc-400" />
@@ -1516,8 +1541,8 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              {/* Name & Mobile (2 cols) */}
-              <div className="grid gap-3 sm:grid-cols-2">
+              {/* Name, Mobile & MPIN (3 cols) */}
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                     Client Name <span className="text-red-500">*</span>
@@ -1539,11 +1564,37 @@ export default function ClientsPage() {
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     placeholder="e.g. 9876543210"
                     value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
                     className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Login MPIN (4-6 digits) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showMpin ? "text" : "password"}
+                      required
+                      maxLength={6}
+                      placeholder="e.g. 1234"
+                      value={mpin}
+                      onChange={(e) => setMpin(e.target.value.replace(/\D/g, ""))}
+                      className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-3 pr-8 font-mono text-xs font-bold text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMpin(!showMpin)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                      title={showMpin ? "Hide MPIN" : "Show MPIN"}
+                    >
+                      {showMpin ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

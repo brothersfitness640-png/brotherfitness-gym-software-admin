@@ -64,6 +64,7 @@ interface ClientMember {
   latitude?: number | null;
   longitude?: number | null;
   photoUrl?: string;
+  mpin?: string;
   createdAt?: any;
 }
 
@@ -422,6 +423,7 @@ export default function ClientDetailPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState("");
   const [editMobile, setEditMobile] = useState("");
+  const [editMpin, setEditMpin] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAddress, setEditAddress] = useState("");
 
@@ -533,6 +535,7 @@ export default function ClientDetailPage() {
         setClient(data);
         setEditName(data.name);
         setEditMobile(data.mobile);
+        setEditMpin(data.mpin || "");
         setEditEmail(data.email || "");
         setEditAddress(data.address);
       } else {
@@ -698,6 +701,7 @@ export default function ClientDetailPage() {
       await updateDoc(doc(db, "clients", clientId), {
         name: editName.trim(),
         mobile: editMobile.trim(),
+        mpin: editMpin.trim(),
         email: editEmail.trim() || null,
         address: editAddress.trim(),
         updatedAt: serverTimestamp(),
@@ -1920,8 +1924,22 @@ export default function ClientDetailPage() {
                   type="tel"
                   required
                   value={editMobile}
-                  onChange={(e) => setEditMobile(e.target.value)}
+                  onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ""))}
                   className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Login MPIN (4-6 digits)
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="e.g. 1234"
+                  value={editMpin}
+                  onChange={(e) => setEditMpin(e.target.value.replace(/\D/g, ""))}
+                  className="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 font-mono text-xs font-bold text-zinc-900 focus:border-amber-400 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
                 />
               </div>
 
@@ -1989,6 +2007,15 @@ export default function ClientDetailPage() {
                 </span>
                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                   {client.mobile}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold text-zinc-400 uppercase tracking-wider text-[10px]">
+                  Login MPIN
+                </span>
+                <span className="font-semibold font-mono text-amber-700 dark:text-amber-400 text-sm">
+                  {client.mpin ? `•••• (${client.mpin})` : "Not Set"}
                 </span>
               </div>
 
