@@ -21,14 +21,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Sidebar />
-      <div className="flex flex-1 flex-col lg:pl-60 min-h-screen">
-        <Header />
-        <main className="flex-1 bg-zinc-50/50 dark:bg-zinc-950 pb-6">
+      <div className="print:hidden">
+        <Sidebar />
+      </div>
+      <div className="flex flex-1 flex-col lg:pl-60 min-h-screen print:pl-0 print:m-0 print:p-0 print:w-full print:min-h-0">
+        <div className="print:hidden">
+          <Header />
+        </div>
+        <main className="flex-1 bg-zinc-50/50 dark:bg-zinc-950 pb-6 print:bg-white print:p-0 print:m-0 print:pb-0">
           {children}
         </main>
       </div>
-      <MobileBottomNav />
+      <div className="print:hidden">
+        <MobileBottomNav />
+      </div>
     </>
   );
 }

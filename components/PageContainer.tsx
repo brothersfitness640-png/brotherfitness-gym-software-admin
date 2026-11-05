@@ -27,9 +27,9 @@ export default function PageContainer({
   const hasActions = Boolean(actionText || onActionClick || showExportImport);
 
   return (
-    <div className="flex flex-col gap-5 p-5 md:p-7 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-5 p-5 md:p-7 max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none print:w-full print:gap-0">
       {/* Top Page Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800 print:hidden">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             {title}

@@ -1639,8 +1639,10 @@ export default function HelpPage() {
       title={lang === "en" ? "Help & Documentation" : "సహాయం మరియు శిక్షణ మార్గదర్శి"}
       subtitle={lang === "en" ? "Comprehensive gym operations and training guide" : "జిమ్ నిర్వహణ మరియు సిబ్బంది శిక్షణ మార్గదర్శి"}
     >
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-br from-zinc-900 via-black to-zinc-950 p-6 text-white shadow-xl">
+      {/* 1. INTERACTIVE SCREEN VIEW (HIDDEN IN PRINT) */}
+      <div className="space-y-5 print:hidden">
+        {/* Header Banner */}
+        <div className="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-br from-zinc-900 via-black to-zinc-950 p-6 text-white shadow-xl">
         <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-2">
@@ -2176,6 +2178,253 @@ export default function HelpPage() {
             ? "Visit the 'Support & Contact' page or contact GamaNext software engineering team for dedicated training and troubleshooting."
             : "'Support & Contact' పేజీకి వెళ్లి డెవలపర్ టీమ్‌తో నేరుగా మాట్లాడవచ్చు."}
         </p>
+      </div>
+      </div>
+
+      {/* 2. DEDICATED OFFICIAL OPERATIONS MANUAL (ONLY VISIBLE IN PRINT / PDF) */}
+      <div className="hidden print:block print:w-full print:bg-white text-zinc-950 font-sans space-y-8">
+        {/* Cover / Header */}
+        <div className="border-b-2 border-black pb-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-wider text-black">
+                Brother&apos;s Fitness Gym Software
+              </h1>
+              <h2 className="text-base font-bold text-zinc-800">
+                {lang === "en"
+                  ? "Standard Operating Procedures & Official Operations Manual"
+                  : "అధికారిక నిర్వహణ విధివిధానాలు & సిబ్బంది శిక్షణ మార్గదర్శి"}
+              </h2>
+            </div>
+            <div className="text-right text-xs text-zinc-600 font-mono">
+              <p className="font-bold text-black">{lang === "en" ? "Language: English" : "భాష: తెలుగు"}</p>
+              <p>System Version: 2.4</p>
+              <p>Issued: {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-600 leading-relaxed italic">
+            {lang === "en"
+              ? "Official operational documentation for gym owners, receptionists, floor managers, and trainers. Covers all system modules, daily workflows, security attendance rules, and financial procedures."
+              : "జిమ్ యజమానులు, రిసెప్షనిస్టులు, ఫ్లోర్ మేనేజర్లు మరియు ట్రైనర్ల కోసం అధికారిక మార్గదర్శి. అన్ని సిస్టమ్ విభాగాలు, రోజువారీ పనులు, హాజరు భద్రతా నియమాలు మరియు ఫీజు విధానాలు ఇందులో వివరించబడ్డాయి."}
+          </p>
+        </div>
+
+        {/* Part 1: Quick Standard Operating Procedures (SOPs) */}
+        <div className="space-y-4 break-inside-avoid">
+          <div className="border-b border-zinc-400 pb-1">
+            <h3 className="text-base font-black uppercase tracking-wider text-black">
+              {lang === "en"
+                ? "Part 1: Daily Standard Operating Procedures (SOPs)"
+                : "విభాగం 1: రోజువారీ పనుల నిర్వహణ విధానం (SOPs)"}
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {QUICK_RECIPES.map((recipe, rIdx) => (
+              <div key={rIdx} className="border border-zinc-400 p-3.5 rounded-lg space-y-2 break-inside-avoid bg-zinc-50/50">
+                <h4 className="font-bold text-xs text-black border-b border-zinc-300 pb-1">
+                  {recipe.title[lang]}
+                </h4>
+                <div className="space-y-1.5 text-[11px] text-zinc-800">
+                  {recipe.steps.map((st, sIdx) => (
+                    <div key={sIdx} className="flex items-start gap-1.5">
+                      <span className="font-bold text-black shrink-0">{sIdx + 1}.</span>
+                      <p className="leading-snug">{st[lang]}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Part 2: Complete 16 System Modules & Pages Reference */}
+        <div className="space-y-6">
+          <div className="border-b border-zinc-400 pb-1">
+            <h3 className="text-base font-black uppercase tracking-wider text-black">
+              {lang === "en"
+                ? "Part 2: Complete System Modules & Pages Reference"
+                : "విభాగం 2: అన్ని 16 పేజీల పూర్తి వివరణలు"}
+            </h3>
+          </div>
+
+          <div className="space-y-6">
+            {HELP_DATA.map((item, idx) => (
+              <div
+                key={item.id}
+                className="border border-zinc-400 p-4 rounded-lg space-y-3.5 break-inside-avoid bg-white"
+              >
+                {/* Module Title & Meta */}
+                <div className="flex items-start justify-between border-b border-zinc-300 pb-2">
+                  <div>
+                    <h4 className="text-sm font-black text-black">
+                      #{idx + 1}. {item.title[lang]}
+                    </h4>
+                    <p className="text-[11px] text-zinc-600 font-mono">
+                      Route: {item.route} | Users: {item.whoUses[lang]}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase border border-zinc-400 px-2 py-0.5 rounded">
+                    {item.category}
+                  </span>
+                </div>
+
+                {/* Analogy & Purpose */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="bg-zinc-100 p-2 rounded border-l-2 border-zinc-800 text-zinc-800 text-[11px]">
+                    <span className="font-bold block text-black">
+                      {lang === "en" ? "Everyday Concept:" : "సులభమైన ఉదాహరణ:"}
+                    </span>
+                    {item.simpleAnalogy[lang]}
+                  </div>
+                  <p className="text-zinc-800 leading-relaxed text-[11px]">
+                    <strong className="text-black">{lang === "en" ? "Purpose: " : "ఉద్దేశం: "}</strong>
+                    {item.purpose[lang]}
+                  </p>
+                </div>
+
+                {/* Screen Overview */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 block">
+                    {lang === "en" ? "What you see on this screen:" : "స్క్రీన్‌పై కనిపించే అంశాలు:"}
+                  </span>
+                  <ul className="list-disc pl-4 text-[11px] text-zinc-800 space-y-0.5">
+                    {item.overview[lang].map((p, pIdx) => (
+                      <li key={pIdx} className="leading-snug">{p}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Step-by-Step How To if any */}
+                {item.howToSteps && item.howToSteps.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 block">
+                      {lang === "en" ? "Step-by-Step Procedure:" : "చేయాల్సిన క్రమం:"}
+                    </span>
+                    {item.howToSteps.map((seq, seqIdx) => (
+                      <div key={seqIdx} className="bg-zinc-50 border border-zinc-200 p-2 rounded text-[11px] space-y-1">
+                        <p className="font-bold text-black">{seq.title[lang]}</p>
+                        {seq.steps.map((st, stIdx) => (
+                          <p key={stIdx} className="text-zinc-700 leading-snug">{st[lang]}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Actions & Buttons */}
+                {item.actions.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 block">
+                      {lang === "en" ? "Buttons & Actions:" : "బటన్లు & విధులు:"}
+                    </span>
+                    <div className="border border-zinc-300 rounded overflow-hidden">
+                      <table className="w-full text-left text-[10px]">
+                        <thead className="bg-zinc-100 border-b border-zinc-300 font-bold">
+                          <tr>
+                            <th className="p-1.5 w-1/4">{lang === "en" ? "Action Name" : "బటన్ / చర్య"}</th>
+                            <th className="p-1.5 w-1/4">{lang === "en" ? "Trigger" : "ఎక్కడ ఉంటుంది"}</th>
+                            <th className="p-1.5">{lang === "en" ? "Description" : "వివరణ"}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-200">
+                          {item.actions.map((act, actIdx) => (
+                            <tr key={actIdx}>
+                              <td className="p-1.5 font-bold">{act.name[lang]}</td>
+                              <td className="p-1.5 font-mono text-zinc-600">{act.trigger[lang]}</td>
+                              <td className="p-1.5 text-zinc-700">{act.description[lang]}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fields Table */}
+                {item.fields.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 block">
+                      {lang === "en" ? "Field Dictionary & Values:" : "ఫీల్డ్ వివరణలు & లెక్కలు:"}
+                    </span>
+                    <div className="border border-zinc-300 rounded overflow-hidden">
+                      <table className="w-full text-left text-[10px]">
+                        <thead className="bg-zinc-100 border-b border-zinc-300 font-bold">
+                          <tr>
+                            <th className="p-1.5 w-1/4">{lang === "en" ? "Field Name" : "ఫీల్డ్ పేరు"}</th>
+                            <th className="p-1.5 w-1/2">{lang === "en" ? "Meaning & Calculation" : "వివరణ & సూత్రం"}</th>
+                            <th className="p-1.5">{lang === "en" ? "Example" : "ఉదాహరణ"}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-200">
+                          {item.fields.map((fld, fldIdx) => (
+                            <tr key={fldIdx}>
+                              <td className="p-1.5 font-bold">{fld.field[lang]}</td>
+                              <td className="p-1.5 text-zinc-700">{fld.meaning[lang]}</td>
+                              <td className="p-1.5 font-mono font-medium text-zinc-800">{fld.example ? fld.example[lang] : "--"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pro Tip */}
+                {item.proTip && (
+                  <div className="text-[10px] bg-zinc-100 p-2 rounded border border-zinc-300 text-zinc-800">
+                    <strong className="text-black">{lang === "en" ? "Pro Tip: " : "చిట్కా: "}</strong>
+                    {item.proTip[lang]}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Part 3: Troubleshooting & FAQ */}
+        <div className="space-y-4 break-inside-avoid">
+          <div className="border-b border-zinc-400 pb-1">
+            <h3 className="text-base font-black uppercase tracking-wider text-black">
+              {lang === "en"
+                ? "Part 3: Troubleshooting & Frequently Asked Questions (FAQ)"
+                : "విభాగం 3: సాధారణ సమస్యలు & తరచుగా వచ్చే సందేహాలు (FAQ)"}
+            </h3>
+          </div>
+          <div className="space-y-3">
+            {FAQS.map((faq, fIdx) => (
+              <div key={fIdx} className="border border-zinc-300 p-3 rounded-lg text-xs space-y-1 break-inside-avoid bg-zinc-50/50">
+                <p className="font-bold text-black">Q{fIdx + 1}: {faq.question[lang]}</p>
+                <p className="text-zinc-700 text-[11px] leading-relaxed">A: {faq.answer[lang]}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Verification Sign-Off Footer */}
+        <div className="border-t-2 border-black pt-4 break-inside-avoid space-y-3 text-xs">
+          <h4 className="font-bold uppercase tracking-wider text-black">
+            {lang === "en" ? "Gym Staff Operations Sign-Off" : "జిమ్ సిబ్బంది ధృవీకరణ & సంతకాలు"}
+          </h4>
+          <div className="grid grid-cols-3 gap-6 pt-2 text-[11px] text-zinc-700">
+            <div className="border-t border-zinc-400 pt-1">
+              <p className="font-bold text-black">{lang === "en" ? "Employee / Trainee Name" : "సిబ్బంది / ఉద్యోగి పేరు"}</p>
+              <p className="text-zinc-500 mt-4">{lang === "en" ? "Signature: __________________" : "సంతకం: __________________"}</p>
+            </div>
+            <div className="border-t border-zinc-400 pt-1">
+              <p className="font-bold text-black">{lang === "en" ? "Gym Branch / Outlet" : "జిమ్ బ్రాంచ్ పేరు"}</p>
+              <p className="text-zinc-500 mt-4">{lang === "en" ? "Date: ________________________" : "తేదీ: ________________________"}</p>
+            </div>
+            <div className="border-t border-zinc-400 pt-1">
+              <p className="font-bold text-black">{lang === "en" ? "Manager / Owner Approval" : "మేనేజర్ / యజమాని ఆమోదం"}</p>
+              <p className="text-zinc-500 mt-4">{lang === "en" ? "Signature: __________________" : "సంతకం: __________________"}</p>
+            </div>
+          </div>
+          <p className="text-center text-[10px] text-zinc-500 pt-3 border-t border-zinc-200">
+            {lang === "en"
+              ? "Brother's Fitness Management System — Internal Operations & Confidential Training Document"
+              : "Brother's Fitness జిమ్ మేనేజ్‌మెంట్ సిస్టమ్ — అంతర్గత నిర్వహణ & శిక్షణ పత్రం"}
+          </p>
+        </div>
       </div>
     </PageContainer>
   );
