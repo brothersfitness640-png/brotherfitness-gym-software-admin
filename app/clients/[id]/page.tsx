@@ -51,6 +51,15 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
+interface MembershipPlan {
+  id: string;
+  name: string;
+  amount: number;
+  duration?: string;
+  outletId?: string;
+  outletName?: string;
+}
+
 interface ClientMember {
   id: string;
   name: string;
@@ -441,6 +450,8 @@ export default function ClientDetailPage() {
 
   // Tab 2: Payments & Assigned Plans State
   const [assignedPlans, setAssignedPlans] = useState<AssignedPlan[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<MembershipPlan[]>([]);
+  const [selectedPlanTemplateId, setSelectedPlanTemplateId] = useState<string>("");
   const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
 
   const [isAssignPlanModalOpen, setIsAssignPlanModalOpen] = useState(false);
@@ -587,6 +598,19 @@ export default function ClientDetailPage() {
     );
     return () => unsub();
   }, [clientId]);
+
+  // 3b. Fetch Configured Gym Membership Plans Real-Time
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "plans"), (snapshot) => {
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as MembershipPlan[];
+      list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setAvailablePlans(list);
+    });
+    return () => unsub();
+  }, []);
 
   // 4. Fetch Available Personal Trainers
   useEffect(() => {
@@ -756,6 +780,10 @@ export default function ClientDetailPage() {
     if (plan) {
       setEditingPlanId(plan.id);
       setPlanName(plan.planName);
+      const matched = availablePlans.find(
+        (p) => p.name.trim().toLowerCase() === plan.planName.trim().toLowerCase()
+      );
+      setSelectedPlanTemplateId(matched ? matched.id : "custom");
       const base = plan.basePrice !== undefined ? plan.basePrice : plan.totalAmount;
       const disc = plan.discount !== undefined ? plan.discount : 0;
       setPlanBasePrice(base.toString());
@@ -766,16 +794,83 @@ export default function ClientDetailPage() {
       setPlanEndDate(plan.endDate || computeEndDate(plan.startDate, plan.durationMonths));
     } else {
       setEditingPlanId(null);
-      setPlanName("6 Months Gold Transformation");
-      setPlanBasePrice("12000");
-      setPlanDiscount("0");
-      setPlanTotalAmount("12000");
-      setPlanDurationMonths("6");
       const today = new Date().toISOString().split("T")[0];
       setPlanStartDate(today);
-      setPlanEndDate(computeEndDate(today, 6));
+      setPlanDiscount("0");
+
+      if (availablePlans.length > 0) {
+        // Match client's outlet if possible, or pick first plan
+        const defaultPlan =
+          client?.outletId && client.outletId !== "all"
+            ? availablePlans.find(
+                (p) => !p.outletId || p.outletId === "all" || p.outletId === client.outletId
+              ) || availablePlans[0]
+            : availablePlans[0];
+
+        setSelectedPlanTemplateId(defaultPlan.id);
+        setPlanName(defaultPlan.name);
+        const amt = (defaultPlan.amount || 0).toString();
+        setPlanBasePrice(amt);
+        setPlanTotalAmount(amt);
+
+        let months = 1;
+        if (defaultPlan.duration) {
+          const match = defaultPlan.duration.match(/\d+/);
+          if (match) {
+            months = parseInt(match[0]) || 1;
+            if (defaultPlan.duration.toLowerCase().includes("year")) months = months * 12;
+          }
+        } else if (defaultPlan.name) {
+          const match = defaultPlan.name.match(/\d+/);
+          if (match) {
+            months = parseInt(match[0]) || 1;
+            if (defaultPlan.name.toLowerCase().includes("year")) months = months * 12;
+          }
+        }
+        setPlanDurationMonths(months.toString());
+        setPlanEndDate(computeEndDate(today, months));
+      } else {
+        setSelectedPlanTemplateId("");
+        setPlanName("Gym Membership Plan");
+        setPlanBasePrice("0");
+        setPlanTotalAmount("0");
+        setPlanDurationMonths("1");
+        setPlanEndDate(computeEndDate(today, 1));
+      }
     }
     setIsAssignPlanModalOpen(true);
+  };
+
+  const handleSelectPlanTemplate = (templateId: string) => {
+    setSelectedPlanTemplateId(templateId);
+    if (!templateId || templateId === "custom") {
+      return;
+    }
+    const found = availablePlans.find((p) => p.id === templateId);
+    if (found) {
+      setPlanName(found.name);
+      const amt = (found.amount || 0).toString();
+      setPlanBasePrice(amt);
+      const disc = parseFloat(planDiscount) || 0;
+      setPlanTotalAmount(Math.max(0, (found.amount || 0) - disc).toString());
+
+      let months = 1;
+      if (found.duration) {
+        const match = found.duration.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (found.duration.toLowerCase().includes("year")) months = months * 12;
+        }
+      } else if (found.name) {
+        const match = found.name.match(/\d+/);
+        if (match) {
+          months = parseInt(match[0]) || 1;
+          if (found.name.toLowerCase().includes("year")) months = months * 12;
+        }
+      }
+      setPlanDurationMonths(months.toString());
+      setPlanEndDate(computeEndDate(planStartDate, months));
+    }
   };
 
   const handleBasePriceChange = (val: string) => {
@@ -817,6 +912,7 @@ export default function ClientDetailPage() {
         durationMonths: parseInt(planDurationMonths) || 1,
         startDate: planStartDate,
         endDate: planEndDate || computeEndDate(planStartDate, parseInt(planDurationMonths) || 1),
+        planId: selectedPlanTemplateId && selectedPlanTemplateId !== "custom" ? selectedPlanTemplateId : undefined,
         updatedAt: serverTimestamp(),
       };
 
@@ -835,6 +931,7 @@ export default function ClientDetailPage() {
       // Update parent client document
       await updateDoc(doc(db, "clients", clientId), {
         planName: planName.trim(),
+        planId: selectedPlanTemplateId && selectedPlanTemplateId !== "custom" ? selectedPlanTemplateId : (client?.planId || ""),
         planStartDate: planStartDate,
         planEndDate: planEndDate || computeEndDate(planStartDate, parseInt(planDurationMonths) || 1),
         updatedAt: serverTimestamp(),
@@ -3142,17 +3239,47 @@ export default function ClientDetailPage() {
             </div>
 
             <form onSubmit={handleSaveAssignedPlan} className="mt-4 flex flex-col gap-3">
+              {/* Plan Selection Dropdown */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Plan Name
+                  Select Plan from List <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedPlanTemplateId}
+                  onChange={(e) => handleSelectPlanTemplate(e.target.value)}
+                  className="cursor-pointer h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 outline-none focus:border-amber-400 focus:bg-white dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-amber-400"
+                >
+                  <option value="">-- Choose a Membership Plan --</option>
+                  {availablePlans.length === 0 ? (
+                    <option value="" disabled>No plans configured yet</option>
+                  ) : (
+                    availablePlans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (₹{p.amount}){p.duration ? ` • ${p.duration}` : ""}{p.outletName ? ` [${p.outletName}]` : ""}
+                      </option>
+                    ))
+                  )}
+                  <option value="custom">-- Custom / Other Plan --</option>
+                </select>
+              </div>
+
+              {/* Editable Plan Name / Title */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Plan Name / Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. 6 Months Transformation Plan"
                   value={planName}
-                  onChange={(e) => setPlanName(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800"
+                  onChange={(e) => {
+                    setPlanName(e.target.value);
+                    if (selectedPlanTemplateId !== "custom") {
+                      setSelectedPlanTemplateId("custom");
+                    }
+                  }}
+                  className="h-8.5 w-full rounded-lg border border-zinc-200 px-3 text-xs font-medium dark:bg-zinc-800 outline-none focus:border-amber-400"
                 />
               </div>
 

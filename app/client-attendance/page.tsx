@@ -38,6 +38,8 @@ import {
   Phone,
   UserCheck,
   Eye,
+  QrCode,
+  History,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -57,6 +59,14 @@ interface ClientMember {
   createdAt?: any;
 }
 
+interface ScanEntry {
+  time: string;
+  timestamp?: number;
+  outletName?: string;
+  outletId?: string;
+  scanNumber?: number;
+}
+
 interface AttendanceRecord {
   id: string;
   clientId: string;
@@ -67,7 +77,10 @@ interface AttendanceRecord {
   date: string;
   inTime: string;
   outTime: string;
+  lastScanTime?: string;
   status: string;
+  scanCount?: number;
+  scans?: ScanEntry[];
   radiusDistance?: number;
   faceMatchScore?: number;
   verified?: boolean;
@@ -309,6 +322,14 @@ export default function ClientAttendancePage() {
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Viewing All Scans Detail Modal State
+  const [viewingScansModal, setViewingScansModal] = useState<{
+    client: ClientMember;
+    att: AttendanceRecord;
+    scans: ScanEntry[];
+    scanCount: number;
+  } | null>(null);
+
   // 1. Listen to Clients Collection
   useEffect(() => {
     const clientsRef = collection(db, "clients");
@@ -437,8 +458,14 @@ export default function ClientAttendancePage() {
   // --- AUTOMATED SECURITY VERIFICATION FLOW ---
   const stopAttendanceCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
   };
@@ -469,6 +496,24 @@ export default function ClientAttendancePage() {
     try {
       const outTimeStr = getCurrentFormattedTime();
       const docRef = doc(db, "clients", client.id, "attendance", selectedDate);
+
+      const existingScans = existingAtt?.scans || [];
+      const updatedScans: ScanEntry[] = [...existingScans];
+      if (updatedScans.length === 0 && existingAtt?.inTime) {
+        updatedScans.push({
+          scanNumber: 1,
+          time: existingAtt.inTime,
+          outletName: client.outletName,
+          timestamp: Date.now() - 60000,
+        });
+      }
+      updatedScans.push({
+        scanNumber: updatedScans.length + 1,
+        time: outTimeStr,
+        outletName: client.outletName,
+        timestamp: Date.now(),
+      });
+
       await setDoc(
         docRef,
         {
@@ -480,7 +525,10 @@ export default function ClientAttendancePage() {
           date: selectedDate,
           inTime: existingAtt?.inTime || outTimeStr,
           outTime: outTimeStr,
+          lastScanTime: outTimeStr,
           status: "Present",
+          scanCount: updatedScans.length,
+          scans: updatedScans,
           verified: true,
           updatedAt: serverTimestamp(),
         },
@@ -495,20 +543,63 @@ export default function ClientAttendancePage() {
     }
   };
 
-  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+  // Camera Facing Mode: Defaults to Back Camera ('environment')
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("environment");
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
 
+  // Smooth, lag-free Camera Switch between Back and Front Camera
   const toggleCameraFacingMode = async () => {
+    if (isSwitchingCamera) return;
+    setIsSwitchingCamera(true);
     const newMode = cameraFacingMode === "user" ? "environment" : "user";
     setCameraFacingMode(newMode);
-    stopAttendanceCamera();
+
+    // Stop existing camera completely
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+
+    // Short micro-delay to let OS device driver release camera lock
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: newMode },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: newMode } },
+        audio: false,
       });
       streamRef.current = mediaStream;
       setIsCameraActive(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(() => {});
+      }
     } catch (err) {
       console.error("Camera switch error:", err);
+      // Fallback if specific facingMode fails
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+        streamRef.current = fallbackStream;
+        setIsCameraActive(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (fbErr) {
+        console.error("Fallback camera error:", fbErr);
+      }
+    } finally {
+      setIsSwitchingCamera(false);
     }
   };
 
@@ -577,16 +668,27 @@ export default function ClientAttendancePage() {
     setAttStep("scanning_face");
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: cameraFacingMode },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: cameraFacingMode } },
+        audio: false,
       });
       streamRef.current = mediaStream;
       setIsCameraActive(true);
     } catch (err) {
       console.error("Camera access error:", err);
-      setSecurityErrorMsg("Camera access denied or unavailable.");
-      setIsFaceValid(false);
-      setAttStep("failed");
-      playAudioBeep("error");
+      // Fallback
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+        streamRef.current = fallbackStream;
+        setIsCameraActive(true);
+      } catch (fbErr) {
+        setSecurityErrorMsg("Camera access denied or unavailable.");
+        setIsFaceValid(false);
+        setAttStep("failed");
+        playAudioBeep("error");
+      }
     }
   };
 
@@ -687,6 +789,23 @@ export default function ClientAttendancePage() {
       const docRef = doc(db, "clients", client.id, "attendance", selectedDate);
       const existingAtt = attendanceMapByClientId.get(client.id);
 
+      const existingScans = existingAtt?.scans || [];
+      const updatedScans: ScanEntry[] = [...existingScans];
+      if (updatedScans.length === 0 && existingAtt?.inTime) {
+        updatedScans.push({
+          scanNumber: 1,
+          time: existingAtt.inTime,
+          outletName: client.outletName,
+          timestamp: Date.now() - 60000,
+        });
+      }
+      updatedScans.push({
+        scanNumber: updatedScans.length + 1,
+        time: timeStr,
+        outletName: client.outletName,
+        timestamp: Date.now(),
+      });
+
       const attData = {
         clientId: client.id,
         clientName: client.name,
@@ -695,8 +814,11 @@ export default function ClientAttendancePage() {
         outletName: client.outletName,
         date: selectedDate,
         inTime: markType === "in" ? timeStr : (existingAtt?.inTime || timeStr),
-        outTime: markType === "out" ? timeStr : (existingAtt?.outTime || ""),
+        outTime: markType === "out" ? timeStr : (existingAtt?.outTime || timeStr),
+        lastScanTime: timeStr,
         status: "Present",
+        scanCount: updatedScans.length,
+        scans: updatedScans,
         radiusDistance: calculatedRadiusMeters || 12,
         faceMatchScore: matchScore,
         verified: true,
@@ -736,8 +858,29 @@ export default function ClientAttendancePage() {
         "attendance",
         outTimeClient.att.date || selectedDate
       );
+
+      const existingScans = outTimeClient.att.scans || [];
+      const updatedScans: ScanEntry[] = [...existingScans];
+      if (updatedScans.length === 0 && outTimeClient.att.inTime) {
+        updatedScans.push({
+          scanNumber: 1,
+          time: outTimeClient.att.inTime,
+          outletName: outTimeClient.client.outletName,
+          timestamp: Date.now() - 60000,
+        });
+      }
+      updatedScans.push({
+        scanNumber: updatedScans.length + 1,
+        time: manualOutTime.trim(),
+        outletName: outTimeClient.client.outletName,
+        timestamp: Date.now(),
+      });
+
       await updateDoc(docRef, {
         outTime: manualOutTime.trim(),
+        lastScanTime: manualOutTime.trim(),
+        scanCount: updatedScans.length,
+        scans: updatedScans,
         updatedAt: serverTimestamp(),
       });
       setIsOutTimeModalOpen(false);
@@ -1126,6 +1269,51 @@ export default function ClientAttendancePage() {
                       </div>
                     )}
 
+                    {/* Scanned Attendance Times (Mobile) */}
+                    {isMarked && (() => {
+                      const displayScans: ScanEntry[] =
+                        att.scans && att.scans.length > 0
+                          ? att.scans
+                          : [
+                              ...(att.inTime ? [{ scanNumber: 1, time: att.inTime, outletName: att.outletName }] : []),
+                              ...(att.outTime && att.outTime !== "--" && att.outTime !== att.inTime
+                                ? [{ scanNumber: 2, time: att.outTime, outletName: att.outletName }]
+                                : []),
+                            ];
+                      const scanCount = att.scanCount || displayScans.length;
+
+                      return (
+                        <div className="flex flex-col gap-2 bg-amber-50/50 dark:bg-amber-950/20 p-2.5 rounded-xl border border-amber-400/20">
+                          <div className="flex items-center justify-between text-xs font-semibold text-amber-800 dark:text-amber-300">
+                            <span className="flex items-center gap-1.5">
+                              <QrCode className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>Total Attendance Scans</span>
+                            </span>
+                            <span className="rounded bg-amber-400/30 px-2 py-0.5 text-[10px] font-bold">
+                              {scanCount} Scan{scanCount > 1 ? "s" : ""}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                            {displayScans.map((s, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between bg-white dark:bg-zinc-900 px-2 py-1 rounded-md border border-zinc-200/60 dark:border-zinc-800 text-[11px]"
+                              >
+                                <span className="font-bold text-amber-600 dark:text-amber-400">
+                                  #{s.scanNumber || idx + 1}
+                                </span>
+                                <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1">
+                                  <Clock className="h-2.5 w-2.5 text-amber-500" />
+                                  {s.time}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div className="flex items-center justify-end gap-2 pt-1">
                       {!editable ? (
                         <span className="text-[11px] font-semibold text-zinc-400">View Only</span>
@@ -1202,6 +1390,7 @@ export default function ClientAttendancePage() {
                     <th className="px-5 py-3.5 font-semibold">Date</th>
                     <th className="px-5 py-3.5 font-semibold">In Time</th>
                     <th className="px-5 py-3.5 font-semibold">Out Time</th>
+                    <th className="px-5 py-3.5 font-semibold">Total Scans & Timestamps</th>
                     <th className="px-5 py-3.5 font-semibold">Security Verification</th>
                     <th className="px-5 py-3.5 font-semibold">Status</th>
                     <th className="px-5 py-3.5 font-semibold text-right">Actions</th>
@@ -1271,6 +1460,63 @@ export default function ClientAttendancePage() {
                               <LogOut className="h-3.5 w-3.5" />
                               {att.outTime}
                             </span>
+                          ) : (
+                            <span className="text-zinc-400 font-medium">--</span>
+                          )}
+                        </td>
+
+                        {/* Total Scans & Timestamps */}
+                        <td className="px-5 py-3.5">
+                          {isMarked ? (
+                            (() => {
+                              const displayScans: ScanEntry[] =
+                                att.scans && att.scans.length > 0
+                                  ? att.scans
+                                  : [
+                                      ...(att.inTime ? [{ scanNumber: 1, time: att.inTime, outletName: att.outletName }] : []),
+                                      ...(att.outTime && att.outTime !== "--" && att.outTime !== att.inTime
+                                        ? [{ scanNumber: 2, time: att.outTime, outletName: att.outletName }]
+                                        : []),
+                                    ];
+                              const scanCount = att.scanCount || displayScans.length;
+
+                              return (
+                                <div className="flex flex-col gap-1 max-w-[220px]">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="inline-flex items-center gap-1 rounded bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                                      <QrCode className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                      {scanCount} Scan{scanCount > 1 ? "s" : ""}
+                                    </span>
+                                    {displayScans.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingScansModal({ client, att, scans: displayScans, scanCount })}
+                                        className="text-[10px] text-amber-600 dark:text-amber-400 font-bold hover:underline cursor-pointer"
+                                      >
+                                        View all ({displayScans.length})
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5">
+                                    {displayScans.slice(0, 2).map((s, idx) => (
+                                      <span key={idx} className="font-mono text-[11px] text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                                        <span className="text-[10px] text-amber-600 font-bold">#{s.scanNumber || idx + 1}:</span>
+                                        <span className="font-semibold">{s.time}</span>
+                                      </span>
+                                    ))}
+                                    {displayScans.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingScansModal({ client, att, scans: displayScans, scanCount })}
+                                        className="text-left text-[10px] text-zinc-400 hover:text-amber-500 font-medium cursor-pointer"
+                                      >
+                                        +{displayScans.length - 2} more scan times...
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()
                           ) : (
                             <span className="text-zinc-400 font-medium">--</span>
                           )}
@@ -1497,10 +1743,17 @@ export default function ClientAttendancePage() {
                     <button
                       type="button"
                       onClick={toggleCameraFacingMode}
-                      className="cursor-pointer flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                      disabled={isSwitchingCamera}
+                      className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 disabled:opacity-50 transition-all shadow-xs"
                     >
-                      <RefreshCw className="h-3 w-3 text-amber-500" />
-                      <span>{cameraFacingMode === "user" ? "Switch to Back Camera" : "Switch to Front Camera"}</span>
+                      <RefreshCw className={`h-3 w-3 ${isSwitchingCamera ? "animate-spin text-amber-500" : "text-amber-500"}`} />
+                      <span>
+                        {isSwitchingCamera
+                          ? "Switching..."
+                          : cameraFacingMode === "environment"
+                          ? "Back Cam (Active) - Switch to Front"
+                          : "Front Cam (Active) - Switch to Back"}
+                      </span>
                     </button>
                   </div>
                   <div className="relative h-44 w-full max-w-xs mx-auto rounded-xl overflow-hidden bg-black border-2 border-amber-400">
@@ -1729,6 +1982,103 @@ export default function ClientAttendancePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 4: VIEW ALL SCANS & TIMESTAMPS TIMELINE --- */}
+      {viewingScansModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-black">
+                  <QrCode className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                    Attendance Scans History
+                  </h3>
+                  <span className="text-[11px] text-zinc-500 font-medium">
+                    {viewingScansModal.att.date || selectedDate}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingScansModal(null)}
+                className="cursor-pointer text-zinc-400 hover:text-zinc-600 rounded-lg p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Member Info */}
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-800">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden border border-amber-400 bg-amber-400/20 text-amber-800 font-bold text-xs">
+                {viewingScansModal.client.photoUrl ? (
+                  <img src={viewingScansModal.client.photoUrl} alt={viewingScansModal.client.name} className="h-full w-full object-cover" />
+                ) : (
+                  viewingScansModal.client.name.charAt(0).toUpperCase()
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-zinc-900 dark:text-zinc-100 text-sm leading-tight">
+                  {viewingScansModal.client.name}
+                </span>
+                <span className="text-xs text-zinc-500 font-medium">
+                  {viewingScansModal.client.mobile} • {viewingScansModal.client.outletName}
+                </span>
+              </div>
+              <div className="ml-auto text-right">
+                <span className="rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                  {viewingScansModal.scanCount} Scans Today
+                </span>
+              </div>
+            </div>
+
+            {/* List of all individual scans */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                <span>Detailed Chronological Scan Timestamps:</span>
+                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
+                  First: {viewingScansModal.att.inTime || "--"}
+                </span>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto space-y-1.5 rounded-xl border border-zinc-200/80 bg-zinc-50/40 p-2 dark:border-zinc-800 dark:bg-zinc-800/30 divide-y divide-zinc-100 dark:divide-zinc-800">
+                {viewingScansModal.scans.map((s, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-2 px-1 text-xs first:pt-1 last:pb-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="rounded bg-amber-400/20 px-2 py-0.5 font-mono text-xs font-bold text-amber-800 dark:text-amber-300 border border-amber-400/30">
+                        #{s.scanNumber || idx + 1}
+                      </span>
+                      <div>
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
+                          Check-in Scan #{s.scanNumber || idx + 1}
+                        </span>
+                        <span className="text-[11px] text-zinc-500">
+                          {s.outletName || viewingScansModal.client.outletName}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3 text-amber-500" />
+                      {s.time}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setViewingScansModal(null)}
+                className="w-full h-9 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

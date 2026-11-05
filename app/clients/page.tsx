@@ -538,8 +538,9 @@ export default function ClientsPage() {
     );
   };
 
-  // Camera Management
-  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+  // Camera Management - Default to Back Camera ('environment')
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("environment");
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
 
   const startCamera = async (mode: "user" | "environment" = cameraFacingMode) => {
     setCameraError("");
@@ -549,31 +550,65 @@ export default function ClientsPage() {
         return;
       }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current.getTracks().forEach((t) => {
+          t.stop();
+          t.enabled = false;
+        });
+        streamRef.current = null;
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: mode },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: mode } },
         audio: false,
       });
       streamRef.current = mediaStream;
       setIsCameraActive(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(() => {});
+      }
     } catch (err: any) {
       console.error("Camera access error:", err);
-      setCameraError("Camera permission denied or camera not available");
-      setIsCameraActive(false);
+      // Fallback
+      try {
+        const fallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        streamRef.current = fallback;
+        setIsCameraActive(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallback;
+          videoRef.current.play().catch(() => {});
+        }
+      } catch (fbErr) {
+        setCameraError("Camera permission denied or camera not available");
+        setIsCameraActive(false);
+      }
     }
   };
 
   const toggleCameraFacingMode = async () => {
+    if (isSwitchingCamera) return;
+    setIsSwitchingCamera(true);
     const newMode = cameraFacingMode === "user" ? "environment" : "user";
     setCameraFacingMode(newMode);
+    stopCamera();
+    await new Promise((res) => setTimeout(res, 80));
     await startCamera(newMode);
+    setIsSwitchingCamera(false);
   };
 
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
   };
@@ -1496,10 +1531,17 @@ export default function ClientsPage() {
                       <button
                         type="button"
                         onClick={toggleCameraFacingMode}
-                        className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                        disabled={isSwitchingCamera}
+                        className="cursor-pointer flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 disabled:opacity-50 transition-all shadow-xs"
                       >
-                        <RefreshCw className="h-3.5 w-3.5 text-amber-500" />
-                        <span>{cameraFacingMode === "user" ? "Back Camera" : "Front Camera"}</span>
+                        <RefreshCw className={`h-3.5 w-3.5 ${isSwitchingCamera ? "animate-spin text-amber-500" : "text-amber-500"}`} />
+                        <span>
+                          {isSwitchingCamera
+                            ? "Switching..."
+                            : cameraFacingMode === "environment"
+                            ? "Back Cam (Active) - Switch to Front"
+                            : "Front Cam (Active) - Switch to Back"}
+                        </span>
                       </button>
                       <button
                         type="button"
