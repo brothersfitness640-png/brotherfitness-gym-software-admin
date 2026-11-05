@@ -21,6 +21,7 @@ import {
   LogOut,
   PhoneCall,
   Dumbbell,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -115,6 +116,13 @@ const MENU_CARDS = [
     href: "/settings",
     icon: Settings,
     color: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20",
+  },
+  {
+    title: "Help & User Guide",
+    subtitle: "Complete software manual (English & Telugu)",
+    href: "/help",
+    icon: BookOpen,
+    color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
   },
 ];
 

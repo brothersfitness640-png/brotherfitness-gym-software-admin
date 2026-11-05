@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasAccess = (path: string): boolean => {
     if (user) return true; // Full admin access
     if (!staffUser) return false;
+    if (path === "/help" || path === "/menu") return true;
 
     // Normalize path to base module
     const cleanPath = path === "" ? "/" : path;
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canEdit = (path: string): boolean => {
     if (user) return true;
     if (!staffUser) return false;
+    if (path === "/help" || path === "/menu") return true;
 
     const cleanPath = path === "" ? "/" : path;
     const baseSegment = "/" + cleanPath.split("/")[1] || "/";

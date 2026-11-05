@@ -20,6 +20,7 @@ import {
   LogOut,
   UserCog,
   Dumbbell,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -88,6 +89,11 @@ export const ALL_NAVIGATION_ITEMS = [
     name: "Support & Contact",
     href: "/support",
     icon: HelpCircle,
+  },
+  {
+    name: "Help & Guide",
+    href: "/help",
+    icon: BookOpen,
   },
   {
     name: "Settings",
